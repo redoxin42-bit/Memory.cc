@@ -553,35 +553,35 @@ local Panel = mk("CanvasGroup", {
 
 local Root = mk("Frame", {
     Size = UDim2.new(1, 0, 1, 0),
-    BackgroundColor3 = Color3.fromRGB(245, 247, 252),
-    BackgroundTransparency = 0.08,
+    BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+    BackgroundTransparency = 0.05,
     BorderSizePixel = 0, Active = true,
 }, Panel)
 mk("UICorner", { CornerRadius = UDim.new(0, 16) }, Root)
 mk("UIStroke", {
-    Color = Color3.fromRGB(220, 225, 235),
+    Color = Color3.fromRGB(255, 255, 255),
     Thickness = 1.4,
-    Transparency = 0.25,
+    Transparency = 0.55,
 }, Root)
--- LiquidGlass sheen
+-- LiquidGlass sheen (dark)
 local glassSheen = mk("Frame", {
     Size = UDim2.new(1, 0, 0.45, 0), BackgroundTransparency = 1, ZIndex = 1,
 }, Root)
 local sheenFill = mk("Frame", {
     Size = UDim2.new(1, 0, 1, 0),
-    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.55, BorderSizePixel = 0, ZIndex = 1,
+    BackgroundColor3 = Color3.fromRGB(40, 40, 50),
+    BackgroundTransparency = 0.7, BorderSizePixel = 0, ZIndex = 1,
 }, glassSheen)
 mk("UICorner", { CornerRadius = UDim.new(0, 16) }, sheenFill)
 mk("UIGradient", {
     Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.35),
+        NumberSequenceKeypoint.new(0, 0.4),
         NumberSequenceKeypoint.new(0.55, 0.85),
         NumberSequenceKeypoint.new(1, 1),
     }),
     Rotation = 105,
 }, sheenFill)
--- 3D pattern grid (soft diamonds / facets on white glass)
+-- 3D pattern facets on black glass
 local patternLayer = mk("Frame", {
     Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 1, ClipsDescendants = true,
 }, Root)
@@ -596,16 +596,15 @@ for i = 1, 28 do
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(px, 0, py, 0),
         Rotation = ang,
-        BackgroundColor3 = Color3.fromRGB(200, 210, 230),
+        BackgroundColor3 = Color3.fromRGB(55, 55, 70),
         BackgroundTransparency = 0.88 + (i % 4) * 0.02,
         BorderSizePixel = 0, ZIndex = 1,
     }, patternLayer)
     mk("UICorner", { CornerRadius = UDim.new(0, 4) }, facet)
 end
--- soft inner border highlight
 mk("UIStroke", {
     Color = Color3.fromRGB(255, 255, 255),
-    Thickness = 1, Transparency = 0.55,
+    Thickness = 1, Transparency = 0.7,
 }, Root)
 
 -- compact top brand
@@ -623,7 +622,7 @@ local LogoWrap = mk("Frame", {
 buildLogo(LogoWrap, 22, UDim2.new(0, 0, 0.5, -11))
 mk("TextLabel", {
     BackgroundTransparency = 1, Size = UDim2.new(1, -30, 1, 0), Position = UDim2.fromOffset(30, 0),
-    Text = "memory.cc", TextColor3 = Color3.fromRGB(20, 22, 35), Font = F_TITLE, TextSize = 15,
+    Text = "memory.cc", TextColor3 = WHITE, Font = F_TITLE, TextSize = 15,
     TextXAlignment = Enum.TextXAlignment.Left,
 }, LogoWrap)
 local Min = mk("TextButton", {
@@ -732,15 +731,15 @@ end
 local function rowShell(page, h)
     local f = mk("Frame", {
         Size = UDim2.new(1, 0, 0, h or 38),
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.4,
+        BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+        BackgroundTransparency = 0.2,
         BorderSizePixel = 0,
     }, page)
     mk("UICorner", { CornerRadius = UDim.new(0, 10) }, f)
     mk("UIStroke", {
-        Color = Color3.fromRGB(200, 210, 225),
+        Color = Color3.fromRGB(50, 50, 60),
         Thickness = 1,
-        Transparency = 0.4,
+        Transparency = 0.35,
     }, f)
     return f
 end
@@ -748,19 +747,19 @@ end
 local function makeToggle(page, name, iconKind, default, cb)
     local btn = mk("TextButton", {
         Size = UDim2.new(1, 0, 0, 38),
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.35,
+        BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+        BackgroundTransparency = 0.15,
         BorderSizePixel = 0, Text = "", AutoButtonColor = false,
     }, page)
     mk("UICorner", { CornerRadius = UDim.new(0, 10) }, btn)
     mk("UIStroke", {
-        Color = Color3.fromRGB(200, 210, 225),
+        Color = Color3.fromRGB(50, 50, 60),
         Thickness = 1,
         Transparency = 0.35,
     }, btn)
     mk("TextLabel", {
         BackgroundTransparency = 1, Size = UDim2.new(1, -70, 1, 0), Position = UDim2.fromOffset(14, 0),
-        Text = name, TextColor3 = Color3.fromRGB(25, 28, 40), Font = F_BODY, TextSize = 13,
+        Text = name, TextColor3 = WHITE, Font = F_BODY, TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
     }, btn)
     -- Pulse-style purple switch
@@ -801,11 +800,11 @@ local function makeSlider(page, name, iconKind, min, max, default, cb)
     local f = rowShell(page, 48)
     local lbl = mk("TextLabel", {
         BackgroundTransparency = 1, Size = UDim2.new(1, -16, 0, 16), Position = UDim2.fromOffset(12, 4),
-        Text = name .. "  " .. default, TextColor3 = Color3.fromRGB(25, 28, 40), Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+        Text = name .. "  " .. default, TextColor3 = WHITE, Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
     }, f)
     local bar = mk("Frame", {
         Size = UDim2.new(1, -24, 0, 7), Position = UDim2.new(0, 12, 0, 30),
-        BackgroundColor3 = Color3.fromRGB(210, 215, 230), BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(30, 30, 38), BorderSizePixel = 0,
     }, f)
     mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
     local fill = mk("Frame", {
@@ -839,7 +838,7 @@ local function makeDropdown(page, name, iconKind, provider, cb)
     local f = rowShell(page, 48)
     local btn = mk("TextButton", {
         Size = UDim2.new(1, -12, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
-        Text = name .. " : --", TextColor3 = Color3.fromRGB(25, 28, 40), Font = F_BODY, TextSize = 12,
+        Text = name .. " : --", TextColor3 = WHITE, Font = F_BODY, TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false,
     }, f)
     btn.MouseButton1Click:Connect(function()
@@ -4171,19 +4170,19 @@ task.spawn(function()
     end
 end)
 
--- BANNER card (liquidglass)
+-- BANNER card (black liquidglass)
 local MMCard = mk("Frame", {
-    Size = UDim2.fromOffset(460, 360),
+    Size = UDim2.fromOffset(480, 440),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundColor3 = Color3.fromRGB(16, 12, 28),
-    BackgroundTransparency = 0.35,
+    BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+    BackgroundTransparency = 0.12,
     BorderSizePixel = 0, ZIndex = 320,
 }, MainMenu)
-mk("UICorner", { CornerRadius = UDim.new(0, 20) }, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 18) }, MMCard)
 mk("UIStroke", {
-    Color = Color3.fromRGB(210, 215, 230),
-    Thickness = 1.2, Transparency = 0.3,
+    Color = Color3.fromRGB(255, 255, 255),
+    Thickness = 1.2, Transparency = 0.55,
 }, MMCard)
 -- glass sheen
 local sheen = mk("Frame", {
@@ -4229,37 +4228,37 @@ mk("TextLabel", {
 mk("TextLabel", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 20, 0, 58),
-    Text = "License  ·  Customize  ·  Launch",
-    TextColor3 = Color3.fromRGB(150, 140, 175), Font = F_BODY, TextSize = 11,
+    Text = "License  ·  Settings  ·  Launch",
+    TextColor3 = Color3.fromRGB(130, 130, 145), Font = F_BODY, TextSize = 11,
     TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
 }, MMCard)
 
 local KeyBox = mk("TextBox", {
-    Size = UDim2.new(1, -64, 0, 40),
-    Position = UDim2.new(0, 32, 0, 88),
-    BackgroundColor3 = Color3.fromRGB(18, 18, 24),
-    BackgroundTransparency = 0.25,
+    Size = UDim2.new(1, -64, 0, 38),
+    Position = UDim2.new(0, 32, 0, 82),
+    BackgroundColor3 = Color3.fromRGB(14, 14, 16),
+    BackgroundTransparency = 0.1,
     BorderSizePixel = 0,
     Text = "", PlaceholderText = "Enter license key",
-    PlaceholderColor3 = Color3.fromRGB(90, 85, 110),
+    PlaceholderColor3 = Color3.fromRGB(90, 90, 100),
     TextColor3 = WHITE, Font = F_HEAD, TextSize = 13,
     ClearTextOnFocus = false, ZIndex = 325,
     TextXAlignment = Enum.TextXAlignment.Center,
 }, MMCard)
 mk("UICorner", { CornerRadius = UDim.new(0, 10) }, KeyBox)
-mk("UIStroke", { Color = Color3.fromRGB(200, 205, 220), Thickness = 1, Transparency = 0.35 }, KeyBox)
+mk("UIStroke", { Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Transparency = 0.7 }, KeyBox)
 
 local StatusLbl = mk("TextLabel", {
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 20, 0, 132),
+    Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 20, 0, 124),
     Text = "", TextColor3 = Color3.fromRGB(240, 70, 80),
     Font = F_BODY, TextSize = 11,
     TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
 }, MMCard)
 
 local LaunchBtn = mk("TextButton", {
-    Size = UDim2.new(1, -64, 0, 42),
-    Position = UDim2.new(0, 32, 0, 275),
+    Size = UDim2.new(1, -64, 0, 40),
+    Position = UDim2.new(0, 32, 0, 360),
     BackgroundColor3 = Theme.Accent,
     BackgroundTransparency = 0.2,
     BorderSizePixel = 0,
@@ -4272,7 +4271,7 @@ mk("UIStroke", { Color = WHITE, Thickness = 1, Transparency = 0.75 }, LaunchBtn)
 -- customization row
 local AccRow = mk("Frame", {
     Size = UDim2.new(1, -64, 0, 26),
-    Position = UDim2.new(0, 32, 0, 152),
+    Position = UDim2.new(0, 32, 0, 142),
     BackgroundTransparency = 1, ZIndex = 325,
 }, MMCard)
 mk("TextLabel", {
@@ -4305,53 +4304,63 @@ for i, col in ipairs(mmAccents) do
     end)
 end
 
--- Mode settings in Main Menu
+-- Settings panel in Main Menu
 local ModeRow = mk("Frame", {
-    Size = UDim2.new(1, -64, 0, 70),
-    Position = UDim2.new(0, 32, 0, 186),
+    Size = UDim2.new(1, -64, 0, 160),
+    Position = UDim2.new(0, 32, 0, 176),
     BackgroundTransparency = 1, ZIndex = 325,
 }, MMCard)
 mk("TextLabel", {
     BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 14),
-    Text = "Modes", TextColor3 = Color3.fromRGB(140, 130, 160),
+    Text = "Settings", TextColor3 = Color3.fromRGB(160, 160, 170),
     Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 326,
 }, ModeRow)
 
 local function mmModeBtn(label, x, y, getv, setv)
     local b = mk("TextButton", {
-        Size = UDim2.fromOffset(118, 24),
+        Size = UDim2.fromOffset(126, 26),
         Position = UDim2.fromOffset(x, y),
-        BackgroundColor3 = Color3.fromRGB(14, 12, 22),
-        BackgroundTransparency = 0.25,
+        BackgroundColor3 = Color3.fromRGB(14, 14, 16),
+        BackgroundTransparency = 0.1,
         BorderSizePixel = 0,
         Text = label .. (getv() and "  ON" or "  OFF"),
-        TextColor3 = getv() and Color3.fromRGB(70, 210, 120) or Color3.fromRGB(160, 155, 175),
+        TextColor3 = getv() and Color3.fromRGB(70, 210, 120) or Color3.fromRGB(150, 150, 160),
         Font = F_BODY, TextSize = 11, AutoButtonColor = false, ZIndex = 326,
     }, ModeRow)
     mk("UICorner", { CornerRadius = UDim.new(0, 7) }, b)
-    mk("UIStroke", { Color = Color3.fromRGB(200, 205, 220), Thickness = 1, Transparency = 0.5 }, b)
+    mk("UIStroke", { Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Transparency = 0.75 }, b)
     b.MouseButton1Click:Connect(function()
         local nv = not getv()
         setv(nv)
         b.Text = label .. (nv and "  ON" or "  OFF")
-        b.TextColor3 = nv and Color3.fromRGB(70, 210, 120) or Color3.fromRGB(160, 155, 175)
+        b.TextColor3 = nv and Color3.fromRGB(70, 210, 120) or Color3.fromRGB(150, 150, 160)
         notify(label, nv and "Enabled" or "Disabled", 1.5, nv and "ok" or "err")
     end)
     return b
 end
 
+-- row 1
 mmModeBtn("Notifications", 0, 22, function() return Config.NotifEnabled ~= false end, function(v) Config.NotifEnabled = v end)
-mmModeBtn("Rainbow", 126, 22, function() return Theme.Rainbow end, function(v) Theme.Rainbow = v end)
-mmModeBtn("Binds HUD", 252, 22, function() return Config.BindShow end, function(v) Config.BindShow = v end)
-mmModeBtn("ESP", 0, 50, function() return Config.ESP end, function(v) Config.ESP = v end)
-mmModeBtn("Aim", 126, 50, function() return Config.Aim end, function(v) Config.Aim = v end)
-mmModeBtn("Noclip", 252, 50, function() return Config.Noclip end, function(v) Config.Noclip = v end)
+mmModeBtn("Rainbow", 134, 22, function() return Theme.Rainbow end, function(v) Theme.Rainbow = v end)
+mmModeBtn("Binds HUD", 268, 22, function() return Config.BindShow end, function(v) Config.BindShow = v end)
+-- row 2
+mmModeBtn("ESP", 0, 54, function() return Config.ESP end, function(v) Config.ESP = v end)
+mmModeBtn("Aim", 134, 54, function() return Config.Aim end, function(v) Config.Aim = v end)
+mmModeBtn("Noclip", 268, 54, function() return Config.Noclip end, function(v) Config.Noclip = v end)
+-- row 3
+mmModeBtn("Fly", 0, 86, function() return Config.Fly end, function(v) Config.Fly = v end)
+mmModeBtn("Fullbright", 134, 86, function() return Config.Fullbright end, function(v) Config.Fullbright = v end)
+mmModeBtn("Chams", 268, 86, function() return Config.Chams end, function(v) Config.Chams = v end)
+-- row 4
+mmModeBtn("Tracers", 0, 118, function() return Config.Tracers end, function(v) Config.Tracers = v end)
+mmModeBtn("Boxes", 134, 118, function() return Config.Boxes end, function(v) Config.Boxes = v end)
+mmModeBtn("Names", 268, 118, function() return Config.Names end, function(v) Config.Names = v end)
 
 mk("TextLabel", {
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -40, 0, 12), Position = UDim2.new(0, 20, 1, -22),
-    Text = "LiquidGlass  ·  White 3D",
-    TextColor3 = Color3.fromRGB(80, 75, 100), Font = F_BODY, TextSize = 9,
+    Size = UDim2.new(1, -40, 0, 12), Position = UDim2.new(0, 20, 1, -20),
+    Text = "memory.cc  ·  Black LiquidGlass",
+    TextColor3 = Color3.fromRGB(70, 70, 80), Font = F_BODY, TextSize = 9,
     TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
 }, MMCard)
 
