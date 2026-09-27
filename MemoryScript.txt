@@ -417,6 +417,59 @@ local MSLabel = mk("TextLabel", {
     Text = "-- ms", TextXAlignment = Enum.TextXAlignment.Center,
 }, MSBox)
 
+-- Player Music watermark (Yandex Music style waves) — left of center brand
+local MusicWM = mk("Frame", {
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(0.5, -86, 0, 10),
+    Size = UDim2.fromOffset(130, 36),
+    BackgroundColor3 = BLACK, BackgroundTransparency = 0.15,
+    BorderSizePixel = 0, ZIndex = 100,
+}, gui)
+mk("UICorner", { CornerRadius = UDim.new(0, 12) }, MusicWM)
+glassStroke(MusicWM, 1.2, 0.25)
+
+local MusicLbl = mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 1, 0),
+    Position = UDim2.fromOffset(8, 0),
+    Font = F_BODY, TextSize = 10, TextColor3 = Color3.fromRGB(200, 200, 210),
+    Text = "Player Music", TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 101,
+}, MusicWM)
+
+-- equalizer bars (Yandex-style)
+local WaveBox = mk("Frame", {
+    Size = UDim2.fromOffset(28, 16),
+    AnchorPoint = Vector2.new(1, 0.5),
+    Position = UDim2.new(1, -8, 0.5, 0),
+    BackgroundTransparency = 1, ZIndex = 101,
+}, MusicWM)
+local waveBars = {}
+for i = 1, 5 do
+    local bar = mk("Frame", {
+        Size = UDim2.fromOffset(3, 6 + (i % 3) * 3),
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.fromOffset((i - 1) * 5, 16),
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0, ZIndex = 102,
+    }, WaveBox)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
+    BindA(bar, "BackgroundColor3")
+    waveBars[i] = bar
+end
+
+task.spawn(function()
+    local t0 = tick()
+    while gui and gui.Parent do
+        local t = tick() - t0
+        for i, bar in ipairs(waveBars) do
+            local h = 4 + (math.sin(t * 4 + i * 0.9) * 0.5 + 0.5) * 12
+            bar.Size = UDim2.fromOffset(3, h)
+        end
+        task.wait(0.05)
+    end
+end)
+
 task.spawn(function()
     local frames = 0
     RunService.RenderStepped:Connect(function() frames += 1 end)
@@ -547,7 +600,7 @@ end
 -- ========================================================= PulseVisuals-style panel
 
 local Panel = mk("CanvasGroup", {
-    Size = UDim2.fromOffset(520, 380), Position = UDim2.fromOffset(200, 120),
+    Size = UDim2.fromOffset(680, 400), Position = UDim2.fromOffset(140, 100),
     BackgroundTransparency = 1, BorderSizePixel = 0,
 }, gui)
 
@@ -634,17 +687,236 @@ local Min = mk("TextButton", {
 mk("UICorner", { CornerRadius = UDim.new(0, 7) }, Min)
 mk("UIStroke", { Color = Color3.fromRGB(100, 80, 160), Thickness = 1, Transparency = 0.4 }, Min)
 
--- body above bottom nav
+-- body above bottom nav (left column for options)
 local Body = mk("Frame", {
-    Size = UDim2.new(1, -16, 1, -100), Position = UDim2.fromOffset(8, 42),
+    Size = UDim2.new(1, -200, 1, -100), Position = UDim2.fromOffset(8, 42),
     BackgroundTransparency = 1, BorderSizePixel = 0,
 }, Root)
+
+-- ========================================================= RIGHT PREVIEW PANEL (Yanderevs-style)
+local Preview = mk("Frame", {
+    Size = UDim2.fromOffset(176, 300),
+    Position = UDim2.new(1, -184, 0, 48),
+    BackgroundColor3 = Color3.fromRGB(12, 12, 14),
+    BackgroundTransparency = 0.15,
+    BorderSizePixel = 0, ZIndex = 5,
+}, Root)
+mk("UICorner", { CornerRadius = UDim.new(0, 14) }, Preview)
+mk("UIStroke", {
+    Color = Color3.fromRGB(255, 255, 255),
+    Thickness = 1, Transparency = 0.7,
+}, Preview)
+
+local PrevTitle = mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -12, 0, 18), Position = UDim2.fromOffset(8, 8),
+    Text = "Preview", TextColor3 = Color3.fromRGB(160, 160, 170),
+    Font = F_HEAD, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
+}, Preview)
+
+-- silhouette figure container
+local Fig = mk("Frame", {
+    Size = UDim2.fromOffset(100, 160),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 32),
+    BackgroundTransparency = 1, ZIndex = 6,
+}, Preview)
+
+-- head
+local figHead = mk("Frame", {
+    Size = UDim2.fromOffset(36, 36),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 8),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+    BorderSizePixel = 0, ZIndex = 7,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(1, 0) }, figHead)
+
+-- torso
+local figTorso = mk("Frame", {
+    Size = UDim2.fromOffset(44, 48),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 46),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+    BorderSizePixel = 0, ZIndex = 7,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(0, 8) }, figTorso)
+
+-- arms
+local figArmL = mk("Frame", {
+    Size = UDim2.fromOffset(12, 40),
+    Position = UDim2.fromOffset(8, 48),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+    BorderSizePixel = 0, ZIndex = 7,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(1, 0) }, figArmL)
+local figArmR = mk("Frame", {
+    Size = UDim2.fromOffset(12, 40),
+    Position = UDim2.fromOffset(80, 48),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+    BorderSizePixel = 0, ZIndex = 7,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(1, 0) }, figArmR)
+
+-- legs
+local figLegL = mk("Frame", {
+    Size = UDim2.fromOffset(14, 42),
+    Position = UDim2.fromOffset(28, 96),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+    BorderSizePixel = 0, ZIndex = 7,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(0, 6) }, figLegL)
+local figLegR = mk("Frame", {
+    Size = UDim2.fromOffset(14, 42),
+    Position = UDim2.fromOffset(58, 96),
+    BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+    BorderSizePixel = 0, ZIndex = 7,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(0, 6) }, figLegR)
+
+-- corner brackets (scan frame)
+local function mkBracket(parent, x, y, sx, sy)
+    local b = mk("Frame", {
+        Size = UDim2.fromOffset(14, 14),
+        Position = UDim2.new(x, 0, y, 0),
+        AnchorPoint = Vector2.new(x, y),
+        BackgroundTransparency = 1, ZIndex = 8,
+    }, parent)
+    local h = mk("Frame", {
+        Size = UDim2.fromOffset(14, 2),
+        BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, ZIndex = 8,
+    }, b)
+    local v = mk("Frame", {
+        Size = UDim2.fromOffset(2, 14),
+        BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, ZIndex = 8,
+    }, b)
+    if x == 1 then h.Position = UDim2.new(1, -14, 0, 0); v.Position = UDim2.new(1, -2, 0, 0) end
+    if y == 1 then
+        h.Position = UDim2.new(h.Position.X.Scale, h.Position.X.Offset, 1, -2)
+        v.Position = UDim2.new(v.Position.X.Scale, v.Position.X.Offset, 1, -14)
+    end
+    BindA(h, "BackgroundColor3"); BindA(v, "BackgroundColor3")
+    return b
+end
+mkBracket(Fig, 0, 0, 1, 1)
+mkBracket(Fig, 1, 0, 1, 1)
+mkBracket(Fig, 0, 1, 1, 1)
+mkBracket(Fig, 1, 1, 1, 1)
+
+-- halo / nimbus above head (shows when aura/hat on)
+local figHalo = mk("Frame", {
+    Size = UDim2.fromOffset(48, 10),
+    AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, 0, 0, 6),
+    BackgroundColor3 = Theme.Accent,
+    BackgroundTransparency = 0.3,
+    BorderSizePixel = 0, Visible = false, ZIndex = 8,
+}, Fig)
+mk("UICorner", { CornerRadius = UDim.new(1, 0) }, figHalo)
+BindA(figHalo, "BackgroundColor3")
+
+-- chams outline glow around figure
+local figChams = mk("UIStroke", {
+    Color = Theme.Accent, Thickness = 0, Transparency = 1,
+}, Fig)
+
+-- active visuals list
+local PrevList = mk("Frame", {
+    Size = UDim2.new(1, -12, 0, 90),
+    Position = UDim2.fromOffset(6, 200),
+    BackgroundTransparency = 1, ZIndex = 6,
+}, Preview)
+mk("UIListLayout", {
+    Padding = UDim.new(0, 3),
+    SortOrder = Enum.SortOrder.LayoutOrder,
+}, PrevList)
+
+local PrevSkinLbl = mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 0, 14),
+    Text = "Skin: Default",
+    TextColor3 = Color3.fromRGB(180, 180, 190),
+    Font = F_BODY, TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
+    LayoutOrder = 0,
+}, PrevList)
+
+local function prevChip(text, order)
+    local f = mk("Frame", {
+        Size = UDim2.new(1, 0, 0, 14),
+        BackgroundTransparency = 1, Visible = false,
+        LayoutOrder = order, ZIndex = 6,
+    }, PrevList)
+    local dot = mk("Frame", {
+        Size = UDim2.fromOffset(6, 6),
+        Position = UDim2.fromOffset(0, 4),
+        BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, ZIndex = 7,
+    }, f)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, dot)
+    BindA(dot, "BackgroundColor3")
+    mk("TextLabel", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -12, 1, 0), Position = UDim2.fromOffset(12, 0),
+        Text = text, TextColor3 = WHITE, Font = F_BODY, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, f)
+    return f
+end
+
+local chipESP = prevChip("ESP", 1)
+local chipChams = prevChip("Chams", 2)
+local chipBoxes = prevChip("Boxes", 3)
+local chipTracers = prevChip("Tracers", 4)
+local chipNames = prevChip("Names", 5)
+local chipHat = prevChip("Hat / Aura", 6)
+local chipSkeleton = prevChip("Skeleton", 7)
+local chipFullbright = prevChip("Fullbright", 8)
+
+local function refreshPreview()
+    pcall(function()
+        PrevSkinLbl.Text = "Skin: " .. tostring(Config.SkinMode or "Default")
+        chipESP.Visible = Config.ESP == true
+        chipChams.Visible = Config.Chams == true
+        chipBoxes.Visible = Config.Boxes == true
+        chipTracers.Visible = Config.Tracers == true
+        chipNames.Visible = Config.Names == true
+        chipHat.Visible = (Config.PinkHat == true) or (Config.Aura == true) or (Config.Decor and Config.Decor ~= "None")
+        chipSkeleton.Visible = Config.Skeleton == true
+        chipFullbright.Visible = Config.Fullbright == true
+        -- figure effects
+        figHalo.Visible = chipHat.Visible
+        if Config.Chams then
+            figChams.Thickness = 2
+            figChams.Transparency = 0.35
+            figChams.Color = Theme.Accent
+        else
+            figChams.Thickness = 0
+            figChams.Transparency = 1
+        end
+        -- body tint when ESP on
+        local bodyCol = Config.ESP and Theme.Accent or Color3.fromRGB(240, 240, 245)
+        local bodyTr = Config.ESP and 0.15 or 0
+        for _, f in ipairs({ figHead, figTorso, figArmL, figArmR, figLegL, figLegR }) do
+            f.BackgroundColor3 = bodyCol
+            f.BackgroundTransparency = bodyTr
+        end
+    end)
+end
+
+task.spawn(function()
+    while gui and gui.Parent do
+        refreshPreview()
+        task.wait(0.35)
+    end
+end)
+
 
 -- bottom icon nav (PulseVisuals style)
 local Strip = mk("Frame", {
     Size = UDim2.fromOffset(290, 44),
     AnchorPoint = Vector2.new(0.5, 1),
-    Position = UDim2.new(0.5, 0, 1, -10),
+    Position = UDim2.new(0.38, 0, 1, -10),
     BackgroundColor3 = Color3.fromRGB(16, 12, 26),
     BackgroundTransparency = 0.08,
     BorderSizePixel = 0,
@@ -3602,7 +3874,7 @@ makeSlider(pPlayer, "Jump Value", "sliders", 50, 400, 120, function(v) Config.Ju
 makeToggle(pPlayer, "Infinite Jump", "zap", false, function(v) Config.InfJump = v end)
 makeToggle(pPlayer, "Noclip", "ghost", false, function(v) Config.Noclip = v end)
 makeToggle(pPlayer, "Click TP (left click)", "tp", false, function(v) Config.ClickTP = v end)
-makeToggle(pPlayer, "Hand Animation", "person", false, function(v) Config.HandAnim = v end)
+makeToggle(pPlayer, "Masturbate Anim", "person", false, function(v) Config.HandAnim = v end)
 makeSlider(pPlayer, "Anim Speed", "sliders", 1, 12, 4, function(v) Config.HandAnimSpeed = v end)
 
 -- SETTINGS
@@ -4086,6 +4358,7 @@ end)
 Panel.Visible = false
 menuOpen = false
 pcall(function() WM.Visible = false end)
+pcall(function() if MusicWM then MusicWM.Visible = false end end)
 pcall(function() FPSBox.Visible = false end)
 pcall(function() MSBox.Visible = false end)
 pcall(function() if BindHUD then BindHUD.Visible = false end end)
@@ -4383,6 +4656,7 @@ local function launchScript()
     task.delay(0.4, function()
         if MainMenu then MainMenu:Destroy() end
         pcall(function() WM.Visible = true end)
+        pcall(function() if MusicWM then MusicWM.Visible = true end end)
         pcall(function() FPSBox.Visible = true end)
         pcall(function() MSBox.Visible = true end)
         Panel.Visible = true
@@ -4730,49 +5004,103 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- hand animation (client-side arm cycle)
+    -- masturbation animation (client-side Motor6D): arm at crotch, stroke cycle
     if Config.HandAnim and c then
-        local spd = Config.HandAnimSpeed or 4
-        local wave = math.sin(t * spd)
-        local wave2 = math.sin(t * spd * 1.3)
-        -- R15
-        local rua = c:FindFirstChild("RightUpperArm")
-        local rla = c:FindFirstChild("RightLowerArm")
-        local rh = c:FindFirstChild("RightHand")
-        if rua then
-            local m = rua:FindFirstChildOfClass("Motor6D") or (c:FindFirstChild("LowerTorso") and c.LowerTorso:FindFirstChild("RightShoulder"))
-            -- use Transform on Motor6D if available
-            for _, partName in ipairs({ "RightUpperArm", "RightLowerArm", "RightHand" }) do
-                local part = c:FindFirstChild(partName)
-                if part then
-                    local motor = nil
-                    for _, d in ipairs(c:GetDescendants()) do
-                        if d:IsA("Motor6D") and d.Part1 == part then motor = d; break end
-                    end
-                    if motor then
-                        if partName == "RightUpperArm" then
-                            motor.Transform = CFrame.Angles(math.rad(-40 + wave * 25), math.rad(-20), math.rad(30 + wave2 * 15))
-                        elseif partName == "RightLowerArm" then
-                            motor.Transform = CFrame.Angles(math.rad(-70 + wave * 40), 0, 0)
-                        else
-                            motor.Transform = CFrame.Angles(math.rad(wave * 20), 0, 0)
-                        end
+        local spd = math.clamp(Config.HandAnimSpeed or 4, 1, 12)
+        local stroke = math.sin(t * spd * math.pi)          -- -1..1 main pump
+        local stroke2 = math.sin(t * spd * math.pi + 0.4)   -- lagged phase
+        local grip = math.sin(t * spd * math.pi * 2) * 0.2
+
+        local function setMotor(partName, cf)
+            local part = c:FindFirstChild(partName)
+            if not part then return end
+            for _, d in ipairs(c:GetDescendants()) do
+                if d:IsA("Motor6D") and d.Part1 == part then
+                    d.Transform = cf
+                    return
+                end
+            end
+        end
+
+        if c:FindFirstChild("RightUpperArm") then
+            -- R15: right hand at front pelvis, forearm pumps up/down (jerking motion)
+            setMotor("RightUpperArm", CFrame.Angles(
+                math.rad(-75 + stroke * 12),   -- arm down toward crotch
+                math.rad(-50),                 -- across body
+                math.rad(70 + grip * 15)       -- pressed inward
+            ))
+            setMotor("RightLowerArm", CFrame.Angles(
+                math.rad(-100 + stroke * 65),  -- main stroke amplitude
+                math.rad(8),
+                math.rad(5)
+            ))
+            setMotor("RightHand", CFrame.Angles(
+                math.rad(-15 + stroke * 30),
+                math.rad(stroke * 12),
+                math.rad(grip * 40)
+            ))
+            -- slight left hand assist (optional second hand)
+            setMotor("LeftUpperArm", CFrame.Angles(
+                math.rad(-40 + stroke2 * 8),
+                math.rad(25),
+                math.rad(-30)
+            ))
+            setMotor("LeftLowerArm", CFrame.Angles(
+                math.rad(-50 + stroke2 * 20),
+                0, 0
+            ))
+            -- slight torso lean forward
+            local ut = c:FindFirstChild("UpperTorso")
+            if ut then
+                for _, d in ipairs(c:GetDescendants()) do
+                    if d:IsA("Motor6D") and d.Part1 == ut then
+                        d.Transform = CFrame.Angles(math.rad(8 + stroke * 3), 0, 0)
+                        break
                     end
                 end
             end
         else
-            -- R6
-            local ra = c:FindFirstChild("Right Arm")
-            if ra then
-                local motor = nil
+            -- R6: Right Arm pumps at front of body
+            setMotor("Right Arm", CFrame.Angles(
+                math.rad(-85 + stroke * 45),
+                math.rad(-30),
+                math.rad(55 + grip * 12)
+            ))
+            setMotor("Left Arm", CFrame.Angles(
+                math.rad(-30 + stroke2 * 15),
+                math.rad(20),
+                math.rad(-20)
+            ))
+            local torso = c:FindFirstChild("Torso")
+            if torso then
                 for _, d in ipairs(c:GetDescendants()) do
-                    if d:IsA("Motor6D") and d.Part1 == ra then motor = d; break end
-                end
-                if motor then
-                    motor.Transform = CFrame.Angles(math.rad(-50 + wave * 35), math.rad(-15), math.rad(25))
+                    if d:IsA("Motor6D") and d.Part1 == torso then
+                        d.Transform = CFrame.Angles(math.rad(6 + stroke * 2), 0, 0)
+                        break
+                    end
                 end
             end
         end
+        V._handWasOn = true
+    elseif c and V._handWasOn then
+        local function resetMotor(partName)
+            local part = c:FindFirstChild(partName)
+            if not part then return end
+            for _, d in ipairs(c:GetDescendants()) do
+                if d:IsA("Motor6D") and d.Part1 == part then
+                    d.Transform = CFrame.new()
+                    return
+                end
+            end
+        end
+        for _, n in ipairs({
+            "RightUpperArm", "RightLowerArm", "RightHand",
+            "LeftUpperArm", "LeftLowerArm", "LeftHand",
+            "Right Arm", "Left Arm", "UpperTorso", "Torso"
+        }) do
+            resetMotor(n)
+        end
+        V._handWasOn = false
     end
 
     drawOverlay()
@@ -4780,3 +5108,4 @@ RunService.RenderStepped:Connect(function(dt)
         if plr ~= LocalPlayer then ensureVisuals(plr) end
     end
 end)
+
