@@ -1,0 +1,3407 @@
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+local Lighting         = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera      = workspace.CurrentCamera
+local Mouse       = LocalPlayer:GetMouse()
+
+local PINK     = Color3.fromRGB(255, 64, 160)
+local PINKGLOW = Color3.fromRGB(255, 105, 180)
+local PINKDEEP = Color3.fromRGB(190, 35, 120)
+local PINKMID  = Color3.fromRGB(235, 80, 160)
+local HOTPINK  = Color3.fromRGB(255, 20, 120)
+local ROSE     = Color3.fromRGB(255, 90, 130)
+local MAGENTA  = Color3.fromRGB(255, 0, 200)
+local ADMINRED = Color3.fromRGB(255, 45, 65)
+local PURPLE   = Color3.fromRGB(168, 62, 255)
+local GOLD     = Color3.fromRGB(255, 205, 110)
+local CYANC    = Color3.fromRGB(110, 220, 255)
+local GREENC   = Color3.fromRGB(80, 255, 120)
+local GHOSTC   = Color3.fromRGB(225, 232, 255)
+local WHITE    = Color3.fromRGB(255, 255, 255)
+local GREY     = Color3.fromRGB(22, 22, 22)
+local BLACK    = Color3.fromRGB(0, 0, 0)
+local GLASS    = Color3.fromRGB(0, 0, 0)
+local ROW      = Color3.fromRGB(8, 8, 8)
+
+local F_TITLE = Enum.Font.GothamBlack
+local F_HEAD  = Enum.Font.GothamBold
+local F_BODY  = Enum.Font.GothamMedium
+
+local Theme = { Accent = Color3.fromRGB(139, 92, 246), Rainbow = false } -- Pulse purple
+local function hex(c) return string.format("#%02X%02X%02X", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)) end
+
+local Config = {
+    AntiAim = false, AntiAimSpeed = 20,
+    Aim = false, AimFOV = 200, AimSmooth = 0.2,
+    Priority = "Nearest", AimPart = "Head",
+    Silent = false, SilentFOV = 250,
+    Bullet = false, Triggerbot = false, KnifeAura = false,
+    Hitbox = false, HitboxSize = 10,
+    TP = false, TPTarget = nil,
+    PinkHat = false, HatStyle = "Halo",
+    ESP = false, ESPColor = "Role", Names = true, WeaponESP = true,
+    Skeleton = false, Tracers = false,
+    Chams = true, ChamsMode = "Fill",
+    Outline = false, OutlineColor = "White",
+    Boxes = false, BoxStyle = "Full",
+    FovCircle = false, FovCircleSize = 200, Crosshair = false,
+    Aura = false,
+    SkyMode = "Default",
+    Fullbright = false, NoFog = false,
+    JumpTrail = false,
+    Decor = "None", DecorColor = "Pink", DecorSpeed = 3,
+    Buttons = true, ButtonSize = 100,
+    Fly = false, FlySpeed = 60,
+    Spin = false, SpinSpeed = 20,
+    Skin = false, SkinMode = "Pink Neon",
+    Walk = false, WalkSpeed = 32,
+    Jump = false, JumpPower = 120,
+    InfJump = false, Noclip = false, ClickTP = false,
+    -- Minecraft / Pulse / Aura style visuals
+    HitParticles = false, HitParticleStyle = "Stars",
+    DamageNumbers = false,
+    Trails = false, TrailStyle = "Ribbon",
+    TargetESP = false, TargetESPMode = "Rings",
+    BodyGlow = false, BodyGlowColor = "Pink",
+    WorldParticles = false, WorldParticleStyle = "Stars",
+    LowHP = false,
+    FrameESP = false,
+    Cubes = false, CubesDist = 8,
+    HitRange = false,
+    Prediction = false,
+    HandAnim = false, HandAnimSpeed = 4,
+}
+
+local V = { highlights = {}, outlines = {}, billboards = {}, tracers = {}, boxes = {}, corners = {},
+    skel = {}, hats = {}, aura = {}, original = {}, stars = nil, clouds = {}, rain = nil,
+    decor = {}, trailConn = nil, trails = {}, spin = 0, aaYaw = 0, stableYaw = 0,
+    hitParts = {}, dmgNums = {}, bodyGlow = {}, frameEsp = {}, cubes = {}, worldParts = {},
+    predParts = {}, hitRange = {}, lowHpGui = nil, handAnim = nil }
+
+local HB_RESTORE = {}
+
+local ROLE_COLOR = {
+    Murderer = Color3.fromRGB(255, 60, 60),
+    Sheriff  = Color3.fromRGB(70, 130, 255),
+    Innocent = Color3.fromRGB(70, 255, 120),
+}
+local ESP_PAL = { ["Hot Pink"] = HOTPINK, Rose = ROSE, Magenta = MAGENTA, White = WHITE }
+
+-- ========================================================= helpers
+
+local function character() return LocalPlayer.Character end
+local function root()
+    local c = character()
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+local function humanoid()
+    local c = character()
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local function getRole(plr)
+    local c = plr.Character
+    local b = plr:FindFirstChildOfClass("Backpack")
+    if c and c:FindFirstChild("Knife") then return "Murderer" end
+    if b and b:FindFirstChild("Knife") then return "Murderer" end
+    if c and c:FindFirstChild("Gun") then return "Sheriff" end
+    if b and b:FindFirstChild("Gun") then return "Sheriff" end
+    return "Innocent"
+end
+
+local function espColor(plr)
+    if Config.ESPColor == "Rainbow" then return Color3.fromHSV((tick() % 6) / 6, 0.7, 1) end
+    if Config.ESPColor == "Accent" then return Theme.Accent end
+    if ESP_PAL[Config.ESPColor] then return ESP_PAL[Config.ESPColor] end
+    return ROLE_COLOR[getRole(plr)]
+end
+
+local function playDance()
+    local h = humanoid()
+    if h then pcall(function() h:PlayEmote("dance") end) end
+end
+
+local function fxFolder()
+    local f = workspace:FindFirstChild("VantaFx")
+    if not f then
+        f = Instance.new("Folder")
+        f.Name = "VantaFx"
+        f.Parent = workspace
+    end
+    return f
+end
+
+local function ringPoint(r, y, a)
+    return Vector3.new(math.cos(a) * r, y, math.sin(a) * r)
+end
+
+-- ========================================================= GUI shell — LiquidGlass ClickGUI
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "memoryCC"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
+if not ok then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local function mk(class, props, parent)
+    local o = Instance.new(class)
+    for k, v in pairs(props) do o[k] = v end
+    o.Parent = parent
+    return o
+end
+
+local TBindings, IRedraws = {}, {}
+local function BindA(o, p) TBindings[#TBindings + 1] = { o = o, p = p } end
+
+-- glass helpers
+local function glassStroke(parent, thick, trans)
+    local s = mk("UIStroke", {
+        Color = Color3.fromRGB(100, 80, 160),
+        Thickness = thick or 1.2,
+        Transparency = trans or 0.4,
+    }, parent)
+    return s
+end
+
+local function glassGradient(parent)
+    -- solid black look — no gradient wash
+    local g = mk("UIGradient", {
+        Color = ColorSequence.new(BLACK),
+        Transparency = NumberSequence.new(0),
+        Rotation = 0,
+    }, parent)
+    return g
+end
+
+local function buildLogo(parent, size, pos)
+    local box = mk("Frame", {
+        Size = UDim2.fromOffset(size, size), Position = pos or UDim2.new(),
+        BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
+    }, parent)
+    mk("UICorner", { CornerRadius = UDim.new(0, math.floor(size * 0.28)) }, box)
+    glassStroke(box, 1, 0.5)
+    BindA(box, "BackgroundColor3")
+    local s = size
+    local function seg(x, y, w, h, rot)
+        local b = mk("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, x, 0, y),
+            Size = UDim2.fromOffset(w, h), Rotation = rot or 0,
+            BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 2,
+        }, box)
+        mk("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+    end
+    seg(s * 0.22, s * 0.5, s * 0.13, s * 0.58)
+    seg(s * 0.78, s * 0.5, s * 0.13, s * 0.58)
+    seg(s * 0.44, s * 0.42, s * 0.42, s * 0.13, 24)
+    seg(s * 0.56, s * 0.42, s * 0.42, s * 0.13, -24)
+    return box
+end
+
+-- ========================================================= watermark — center brand + right FPS/ms
+-- center: icon + memory.cc
+local WM = mk("TextButton", {
+    AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 10),
+    Size = UDim2.fromOffset(150, 36),
+    BackgroundColor3 = BLACK, BackgroundTransparency = 0.15,
+    BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 100,
+    Text = "", Font = F_BODY, TextSize = 12,
+}, gui)
+mk("UICorner", { CornerRadius = UDim.new(0, 12) }, WM)
+glassStroke(WM, 1.2, 0.25)
+buildLogo(WM, 22, UDim2.new(0, 8, 0.5, -11))
+local WMText = mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, -40, 1, 0),
+    Position = UDim2.fromOffset(36, 0),
+    Font = F_HEAD, TextSize = 13, TextColor3 = WHITE,
+    Text = "memory.cc", TextXAlignment = Enum.TextXAlignment.Left,
+}, WM)
+
+-- right side: FPS (black pill)
+local FPSBox = mk("Frame", {
+    AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -100, 0, 10),
+    Size = UDim2.fromOffset(80, 36),
+    BackgroundColor3 = BLACK, BackgroundTransparency = 0.1,
+    BorderSizePixel = 0, ZIndex = 100,
+}, gui)
+mk("UICorner", { CornerRadius = UDim.new(0, 10) }, FPSBox)
+glassStroke(FPSBox, 1, 0.3)
+local FPSLabel = mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+    Font = F_HEAD, TextSize = 12, TextColor3 = WHITE,
+    Text = "-- FPS", TextXAlignment = Enum.TextXAlignment.Center,
+}, FPSBox)
+
+-- right side: MS (black pill)
+local MSBox = mk("Frame", {
+    AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 10),
+    Size = UDim2.fromOffset(80, 36),
+    BackgroundColor3 = BLACK, BackgroundTransparency = 0.1,
+    BorderSizePixel = 0, ZIndex = 100,
+}, gui)
+mk("UICorner", { CornerRadius = UDim.new(0, 10) }, MSBox)
+glassStroke(MSBox, 1, 0.3)
+local MSLabel = mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+    Font = F_HEAD, TextSize = 12, TextColor3 = WHITE,
+    Text = "-- ms", TextXAlignment = Enum.TextXAlignment.Center,
+}, MSBox)
+
+task.spawn(function()
+    local frames = 0
+    RunService.RenderStepped:Connect(function() frames += 1 end)
+    while gui.Parent do
+        task.wait(0.5)
+        local fps = math.floor(frames / 0.5 + 0.5)
+        frames = 0
+        local ping = 0
+        pcall(function() ping = math.floor(LocalPlayer:GetNetworkPing() * 1000) end)
+        FPSLabel.Text = fps .. " FPS"
+        MSLabel.Text = ping .. " ms"
+    end
+end)
+
+-- ========================================================= icon engine
+
+local function buildIcon(parent, kind, sz, iconPos)
+    sz = sz or 16
+    local holder = mk("Frame", {
+        Size = UDim2.fromOffset(sz, sz), BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, (iconPos or 8), 0.5, 0),
+    }, parent)
+    local function draw()
+        holder:ClearAllChildren()
+        local A = Theme.Accent
+        local function seg(x, y, w, h, rot)
+            local b = mk("Frame", {
+                Size = UDim2.fromOffset(w, h), Position = UDim2.fromOffset(x, y), Rotation = rot or 0,
+                BackgroundColor3 = A, BorderSizePixel = 0, ZIndex = 3,
+            }, holder)
+            mk("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+        end
+        local function ring(x, y, d, t)
+            local r = mk("Frame", { Size = UDim2.fromOffset(d, d), Position = UDim2.fromOffset(x, y), BackgroundTransparency = 1, ZIndex = 3 }, holder)
+            mk("UICorner", { CornerRadius = UDim.new(1, 0) }, r)
+            mk("UIStroke", { Color = A, Thickness = t or 1.4 }, r)
+        end
+        local function sbox(x, y, w, h, rad)
+            local b = mk("Frame", { Size = UDim2.fromOffset(w, h), Position = UDim2.fromOffset(x, y), BackgroundTransparency = 1, ZIndex = 3 }, holder)
+            mk("UICorner", { CornerRadius = UDim.new(0, rad or 2) }, b)
+            mk("UIStroke", { Color = A, Thickness = 1.3 }, b)
+        end
+        local c = sz / 2
+        if kind == "sword" then
+            seg(c - 1, 0, 2, sz * 0.56)
+            seg(c - 4, sz * 0.58, 8, 2)
+            seg(c - 1, sz * 0.62, 2, sz * 0.24)
+            seg(c - 2.5, sz * 0.9, 5, 2)
+        elseif kind == "eye2" then
+            seg(1, c - 1, sz - 2, 2, 14)
+            seg(1, c - 1, sz - 2, 2, -14)
+            seg(c - 1.5, c - 1.5, 3, 3)
+        elseif kind == "vsliders" then
+            for i, x in ipairs({ 3, 8, 13 }) do
+                seg(x - 1, 1, 2, sz - 2)
+                seg(x - 3, 1 + i * 3, 6, 5)
+            end
+        elseif kind == "person" then
+            ring(c - 3.5, 0, 7)
+            seg(2, sz - 6, sz - 4, 2)
+            seg(4, sz - 3, sz - 8, 2)
+        elseif kind == "gear2" then
+            ring(c - 5, c - 5, 10)
+            seg(c - 1, 0, 2, 3); seg(c - 1, sz - 3, 2, 3)
+            seg(0, c - 1, 3, 2); seg(sz - 3, c - 1, 3, 2)
+            seg(c - 1.5, c - 1.5, 3, 3)
+        elseif kind == "crosshair" then
+            seg(c - 1, 0, 2, 4); seg(c - 1, sz - 4, 2, 4); seg(0, c - 1, 4, 2); seg(sz - 4, c - 1, 4, 2)
+            ring(c - 3, c - 3, 6)
+        elseif kind == "eye" then
+            ring(c - 5.5, c - 5.5, 11); seg(c - 1.5, c - 1.5, 3, 3)
+            seg(0, c - 1, 3, 2); seg(sz - 3, c - 1, 3, 2)
+        elseif kind == "sliders" then
+            for i, y in ipairs({ 2, 6, 10 }) do seg(1, y, sz - 2, 2); seg(2 + i * 3, y - 2, 4, 6) end
+        elseif kind == "user" then
+            seg(c - 3.5, 0, 7, 7); seg(1, 9, sz - 2, 5)
+        elseif kind == "zap" then
+            seg(c - 0.5, 0, 3, 7, 22); seg(c - 4, c - 3, 3, 7, 22); seg(c - 3, c - 1, 6, 2)
+        elseif kind == "wind" then
+            seg(0, 3, 10, 2); seg(4, 7, 8, 2); seg(0, 11, 7, 2); seg(sz - 3, 10, 3, 3)
+        elseif kind == "ghost" then
+            sbox(2, 1, 10, 10, 5)
+            seg(5, 5, 2, 2); seg(8, 5, 2, 2); seg(4, 11, 2, 2); seg(7, 12, 2, 2)
+        elseif kind == "sparkle" then
+            seg(c - 1, 1, 2, sz - 2); seg(1, c - 1, sz - 2, 2)
+            seg(c - 0.5, c - 4.5, 1.6, 9, 45); seg(c - 0.5, c - 4.5, 1.6, 9, 135)
+        elseif kind == "sun" then
+            ring(c - 4, c - 4, 8)
+            seg(c - 1, 0, 2, 3); seg(c - 1, sz - 3, 2, 3); seg(0, c - 1, 3, 2); seg(sz - 3, c - 1, 3, 2)
+        elseif kind == "cloud" then
+            ring(4, 0, 7); sbox(0, 4, sz - 1, 6, 3)
+        elseif kind == "cone" then
+            seg(c - 1, 2, 2, 2); seg(c - 2.5, 5, 5, 2); seg(c - 4.5, 8, 9, 2); seg(0, 11, sz, 2)
+        elseif kind == "box" then
+            sbox(2, 2, 10, 10, 2)
+        elseif kind == "circle" then
+            ring(1, 1, sz - 2)
+        elseif kind == "tool" then
+            seg(1, 4, 10, 2); seg(2, 6, 2, 5); seg(9, 6, 3, 2)
+        elseif kind == "tp" then
+            seg(1, 4, 2, 5, -45); seg(4, 4, 2, 5, 45); seg(7, 4, 2, 5, -45); seg(10, 4, 2, 5, 45)
+        elseif kind == "list" then
+            for i, y in ipairs({ 2, 6, 10 }) do seg(1, y, 3, 2); seg(6, y, 7, 2) end
+        elseif kind == "palette" then
+            ring(1, 1, 12); seg(3, 8, 2, 2); seg(6, 4, 2, 2); seg(9, 8, 2, 2)
+        elseif kind == "layers" then
+            seg(2, 3, 10, 2); seg(2, 7, 10, 2); seg(2, 11, 10, 2)
+        elseif kind == "target" then
+            ring(c - 5.5, c - 5.5, 11); ring(c - 2, c - 2, 4)
+        elseif kind == "expand" then
+            seg(0, 0, 4, 2); seg(0, 0, 2, 4); seg(sz - 4, 0, 4, 2); seg(sz - 2, 0, 2, 4)
+            seg(0, sz - 2, 4, 2); seg(0, sz - 4, 2, 4); seg(sz - 4, sz - 2, 4, 2); seg(sz - 2, sz - 4, 2, 4)
+            seg(c - 2, c - 2, 4, 4)
+        elseif kind == "flame" then
+            seg(c, 1, 2, 6, 18); seg(c - 3.5, 5, 2, 5, -20); seg(c - 1, 9, 4, 3)
+        elseif kind == "star" then
+            seg(c - 1, 0, 2, sz)
+            seg(0, c - 1, sz, 2)
+            seg(c - 0.5, c - 5, 1.5, 10, 45)
+            seg(c - 0.5, c - 5, 1.5, 10, 135)
+        end
+    end
+    draw()
+    IRedraws[#IRedraws + 1] = draw
+    return holder
+end
+
+-- ========================================================= PulseVisuals-style panel
+
+local Panel = mk("CanvasGroup", {
+    Size = UDim2.fromOffset(520, 380), Position = UDim2.fromOffset(200, 120),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+}, gui)
+
+local Root = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.fromRGB(10, 8, 16),
+    BackgroundTransparency = 0.05,
+    BorderSizePixel = 0, Active = true,
+}, Panel)
+mk("UICorner", { CornerRadius = UDim.new(0, 14) }, Root)
+mk("UIStroke", {
+    Color = Color3.fromRGB(90, 70, 150),
+    Thickness = 1.2,
+    Transparency = 0.4,
+}, Root)
+
+-- compact top brand
+local Title = mk("Frame", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+}, Root)
+local LogoWrap = mk("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    Size = UDim2.fromOffset(150, 26),
+    BackgroundTransparency = 1,
+}, Title)
+buildLogo(LogoWrap, 22, UDim2.new(0, 0, 0.5, -11))
+mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, -30, 1, 0), Position = UDim2.fromOffset(30, 0),
+    Text = "memory.cc", TextColor3 = WHITE, Font = F_TITLE, TextSize = 15,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, LogoWrap)
+local Min = mk("TextButton", {
+    Size = UDim2.fromOffset(24, 24), Position = UDim2.new(1, -34, 0, 8),
+    BackgroundColor3 = Color3.fromRGB(22, 18, 32), BackgroundTransparency = 0.1,
+    Text = "—", TextColor3 = WHITE,
+    Font = F_HEAD, TextSize = 12, BorderSizePixel = 0,
+}, Title)
+mk("UICorner", { CornerRadius = UDim.new(0, 7) }, Min)
+mk("UIStroke", { Color = Color3.fromRGB(100, 80, 160), Thickness = 1, Transparency = 0.4 }, Min)
+
+-- body above bottom nav
+local Body = mk("Frame", {
+    Size = UDim2.new(1, -16, 1, -100), Position = UDim2.fromOffset(8, 42),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+}, Root)
+
+-- bottom icon nav (PulseVisuals style)
+local Strip = mk("Frame", {
+    Size = UDim2.fromOffset(290, 44),
+    AnchorPoint = Vector2.new(0.5, 1),
+    Position = UDim2.new(0.5, 0, 1, -10),
+    BackgroundColor3 = Color3.fromRGB(16, 12, 26),
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+}, Root)
+mk("UICorner", { CornerRadius = UDim.new(0, 14) }, Strip)
+mk("UIStroke", {
+    Color = Color3.fromRGB(80, 60, 140),
+    Thickness = 1,
+    Transparency = 0.45,
+}, Strip)
+mk("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal,
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding = UDim.new(0, 4),
+    HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    VerticalAlignment = Enum.VerticalAlignment.Center,
+}, Strip)
+mk("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, Strip)
+
+local UserBar = mk("Frame", {
+    Size = UDim2.new(0, 0, 0, 0), Visible = false,
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+}, Root)
+
+local Pages, TabButtons, currentTab = {}, {}, nil
+local switchTab
+switchTab = function(name, instant)
+    currentTab = name
+    for n, p in pairs(Pages) do
+        p.Visible = (n == name)
+    end
+    for n, t in pairs(TabButtons) do
+        local active = (n == name)
+        local bg = active and Theme.Accent or Color3.fromRGB(24, 20, 36)
+        local tr = active and 0 or 0.35
+        if instant then
+            t.btn.BackgroundColor3 = bg
+            t.btn.BackgroundTransparency = tr
+        else
+            TweenService:Create(t.btn, TweenInfo.new(0.15), {
+                BackgroundColor3 = bg,
+                BackgroundTransparency = tr,
+            }):Play()
+        end
+    end
+end
+
+local function makeTab(name, iconKind, order)
+    -- icon-only bottom nav button
+    local btn = mk("TextButton", {
+        Size = UDim2.fromOffset(40, 32),
+        BackgroundColor3 = Color3.fromRGB(24, 20, 36),
+        BackgroundTransparency = 0.35,
+        Text = "", AutoButtonColor = false, BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, Strip)
+    mk("UICorner", { CornerRadius = UDim.new(0, 10) }, btn)
+    buildIcon(btn, iconKind, 16, 12)
+    -- center icon
+    local icon = btn:FindFirstChildOfClass("Frame")
+    if icon then
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
+        icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+    end
+    local page = mk("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false,
+        CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 3, ScrollBarImageColor3 = Theme.Accent,
+    }, Body)
+    mk("UIGridLayout", {
+        CellSize = UDim2.new(0.5, -5, 0, 40),
+        CellPadding = UDim2.fromOffset(8, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        FillDirectionMaxCells = 2,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    }, page)
+    Pages[name] = page
+    TabButtons[name] = { btn = btn }
+    btn.MouseButton1Click:Connect(function() switchTab(name) end)
+    return page
+end
+
+local function rowShell(page, h)
+    local f = mk("Frame", {
+        Size = UDim2.new(1, 0, 0, h or 38),
+        BackgroundColor3 = Color3.fromRGB(18, 14, 28),
+        BackgroundTransparency = 0.25,
+        BorderSizePixel = 0,
+    }, page)
+    mk("UICorner", { CornerRadius = UDim.new(0, 10) }, f)
+    mk("UIStroke", {
+        Color = Color3.fromRGB(60, 45, 100),
+        Thickness = 1,
+        Transparency = 0.65,
+    }, f)
+    return f
+end
+
+local function makeToggle(page, name, iconKind, default, cb)
+    local btn = mk("TextButton", {
+        Size = UDim2.new(1, 0, 0, 38),
+        BackgroundColor3 = Color3.fromRGB(18, 14, 28),
+        BackgroundTransparency = 0.2,
+        BorderSizePixel = 0, Text = "", AutoButtonColor = false,
+    }, page)
+    mk("UICorner", { CornerRadius = UDim.new(0, 10) }, btn)
+    mk("UIStroke", {
+        Color = Color3.fromRGB(60, 45, 100),
+        Thickness = 1,
+        Transparency = 0.65,
+    }, btn)
+    mk("TextLabel", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, -70, 1, 0), Position = UDim2.fromOffset(14, 0),
+        Text = name, TextColor3 = WHITE, Font = F_BODY, TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, btn)
+    -- Pulse-style purple switch
+    local track = mk("Frame", {
+        Size = UDim2.fromOffset(42, 22), AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -12, 0.5, 0), BorderSizePixel = 0,
+        BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(40, 35, 55),
+    }, btn)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, track)
+    local knob = mk("Frame", {
+        Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0, 0.5),
+        Position = default and UDim2.new(0, 23, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+        BackgroundColor3 = WHITE, BorderSizePixel = 0,
+    }, track)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, knob)
+    local on = default
+    btn.MouseButton1Click:Connect(function()
+        on = not on
+        TweenService:Create(track, TweenInfo.new(0.18), {
+            BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(40, 35, 55),
+        }):Play()
+        TweenService:Create(knob, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            { Position = on and UDim2.new(0, 23, 0.5, 0) or UDim2.new(0, 3, 0.5, 0) }):Play()
+        cb(on)
+    end)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundTransparency = 0.05 }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundTransparency = 0.2 }):Play()
+    end)
+end
+
+local function makeSlider(page, name, iconKind, min, max, default, cb)
+    local f = rowShell(page, 48)
+    local lbl = mk("TextLabel", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, -16, 0, 16), Position = UDim2.fromOffset(12, 4),
+        Text = name .. "  " .. default, TextColor3 = WHITE, Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+    }, f)
+    local bar = mk("Frame", {
+        Size = UDim2.new(1, -24, 0, 7), Position = UDim2.new(0, 12, 0, 30),
+        BackgroundColor3 = Color3.fromRGB(30, 25, 45), BorderSizePixel = 0,
+    }, f)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
+    local fill = mk("Frame", {
+        Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
+    }, bar)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
+    BindA(fill, "BackgroundColor3")
+    local dragging = false
+    local function set(v)
+        v = math.clamp(math.floor(v + 0.5), min, max)
+        fill.Size = UDim2.new((v - min) / (max - min), 0, 1, 0)
+        lbl.Text = name .. "  " .. v
+        cb(v)
+    end
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            set(min + rel * (max - min))
+        end
+    end)
+end
+
+local function makeDropdown(page, name, iconKind, provider, cb)
+    local f = rowShell(page, 48)
+    local btn = mk("TextButton", {
+        Size = UDim2.new(1, -12, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
+        Text = name .. " : --", TextColor3 = WHITE, Font = F_BODY, TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false,
+    }, f)
+    btn.MouseButton1Click:Connect(function()
+        local old = f:FindFirstChild("DropdownList")
+        if old then old:Destroy(); f.ZIndex = 1; return end
+        f.ZIndex = 50
+        local list = type(provider) == "function" and provider() or provider
+        local lf = mk("Frame", {
+            Name = "DropdownList",
+            Size = UDim2.new(1, 0, 0, 28 * math.max(1, #list)),
+            Position = UDim2.new(0, 0, 0, 34),
+            BackgroundColor3 = BLACK,
+            BackgroundTransparency = 0.15,
+            BorderSizePixel = 0, ZIndex = 50,
+        }, f)
+        mk("UICorner", { CornerRadius = UDim.new(0, 10) }, lf)
+        glassStroke(lf, 1.2, 0.4)
+        TweenService:Create(lf, TweenInfo.new(0.15), { BackgroundTransparency = 0.05 }):Play()
+        for i, opt in ipairs(list) do
+            local ob = mk("TextButton", {
+                Size = UDim2.new(1, 0, 0, 28), Position = UDim2.new(0, 0, 0, 28 * (i - 1)),
+                BackgroundColor3 = Color3.fromRGB(16, 16, 16), BackgroundTransparency = 0.15,
+                BorderSizePixel = 0,
+                Text = "  " .. opt, TextColor3 = WHITE, Font = F_BODY, TextSize = 12,
+                TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, ZIndex = 51,
+            }, lf)
+            ob.MouseButton1Click:Connect(function()
+                btn.Text = name .. " : " .. opt
+                lf:Destroy(); f.ZIndex = 1
+                cb(opt)
+            end)
+            ob.MouseEnter:Connect(function()
+                TweenService:Create(ob, TweenInfo.new(0.1), { BackgroundTransparency = 0 }):Play()
+            end)
+            ob.MouseLeave:Connect(function()
+                TweenService:Create(ob, TweenInfo.new(0.1), { BackgroundTransparency = 0.3 }):Play()
+            end)
+        end
+    end)
+end
+
+local function ApplyTheme()
+    for _, b in ipairs(TBindings) do b.o[b.p] = Theme.Accent end
+    for _, f in ipairs(IRedraws) do pcall(f) end
+    if currentTab then switchTab(currentTab, true) end
+end
+
+local menuOpen = false
+local function toggleMenu(force)
+    if force ~= nil then menuOpen = force else menuOpen = not menuOpen end
+    local base = Panel.Position
+    if menuOpen then
+        Panel.Visible = true
+        Panel.GroupTransparency = 1
+        Panel.Position = UDim2.new(base.X.Scale, base.X.Offset, base.Y.Scale, base.Y.Offset + 16)
+        TweenService:Create(Panel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            { GroupTransparency = 0, Position = base }):Play()
+    else
+        local tw = TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+            { GroupTransparency = 1, Position = UDim2.new(base.X.Scale, base.X.Offset, base.Y.Scale, base.Y.Offset + 12) })
+        tw.Completed:Once(function() Panel.Visible = false end)
+        tw:Play()
+    end
+end
+
+WM.MouseButton1Click:Connect(function() toggleMenu() end)
+
+-- ========================================================= fx primitives
+
+local function newPart(shape, size, color, material, transparency)
+    local p = Instance.new("Part")
+    p.Shape = shape
+    p.Size = size
+    p.Color = color
+    p.Material = material
+    p.Transparency = transparency
+    p.Anchored = true
+    p.CanCollide = false
+    p.CanQuery = false
+    p.CanTouch = false
+    p.CastShadow = false
+    p.Parent = fxFolder()
+    return p
+end
+
+local ZROT = CFrame.Angles(0, 0, math.rad(90))
+local function clearHats()
+    for _, d in ipairs(V.hats) do pcall(function() d.p:Destroy() end) end
+    V.hats = {}
+end
+local function clearAura()
+    for _, d in ipairs(V.aura) do pcall(function() d.p:Destroy() end) end
+    V.aura = {}
+end
+
+local function addLineRing(list, y, R, segs, color, thick, material)
+    local step = 2 * math.pi / segs
+    local segLen = 2 * R * math.sin(step / 2) * 1.04
+    for i = 1, segs do
+        local a1 = (i - 1) * step
+        local p1 = ringPoint(R, y, a1)
+        local p2 = ringPoint(R, y, a1 + step)
+        list[#list + 1] = {
+            p = newPart(Enum.PartType.Cylinder, Vector3.new(segLen, thick, thick), color, material or Enum.Material.Neon, 0.1),
+            rel = CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0),
+        }
+    end
+end
+
+local function addStackedCone(list, baseY, rBottom, rTop, height, layers, color, material, transparency)
+    local th = (height / (layers - 1)) * 1.6
+    for i = 0, layers - 1 do
+        local a = i / (layers - 1)
+        local r = rBottom + (rTop - rBottom) * a
+        local d = newPart(Enum.PartType.Cylinder, Vector3.new(th, r * 2, r * 2), color, material, transparency)
+        list[#list + 1] = { p = d, rel = CFrame.new(0, baseY + height * a, 0) * ZROT }
+    end
+end
+
+-- ========================================================= hat builder — Chinese + classic
+
+local function buildHat()
+    clearHats()
+    local c = character(); if not c then return end
+    local head = c:FindFirstChild("Head"); if not head then return end
+    local style = Config.HatStyle
+
+    if style == "Halo" then
+        local glow = newPart(Enum.PartType.Cylinder, Vector3.new(0.1, 3.2, 3.2), PINKGLOW, Enum.Material.Glass, 0.92)
+        V.hats[#V.hats + 1] = { p = glow, rel = CFrame.new(0, 1.72, 0) * ZROT }
+        local n, r = 20, 1.55
+        local step = 2 * math.pi / n
+        local segLen = 2 * r * math.sin(step / 2) * 1.04
+        for i = 1, n do
+            local seg = newPart(Enum.PartType.Cylinder, Vector3.new(segLen, 0.11, 0.11), PINKGLOW, Enum.Material.Neon, 0.12)
+            V.hats[#V.hats + 1] = { p = seg, spinSpeed = 0.45, idx = i - 1, step = step, r = r, y = 1.85 }
+            if i == 1 then
+                local sp = Instance.new("Sparkles")
+                sp.SparkleColor = PINKGLOW
+                sp.Parent = seg
+            end
+        end
+        local pe = Instance.new("ParticleEmitter")
+        pe.Color = ColorSequence.new(PINKGLOW)
+        pe.Rate = 6; pe.Lifetime = NumberRange.new(0.4, 0.8)
+        pe.Speed = NumberRange.new(0.1, 0.3)
+        pe.Size = NumberSequence.new(0.22)
+        pe.LightEmission = 1
+        pe.Transparency = NumberSequence.new(0.4)
+        pe.Parent = glow
+
+    elseif style == "Horns" then
+        for _, s in ipairs({ -1, 1 }) do
+            local hb = CFrame.new(0.55 * s, 0.55, 0) * CFrame.Angles(0, 0, math.rad(-22 * s))
+            local b = newPart(Enum.PartType.Cylinder, Vector3.new(0.5, 0.52, 0.52), PINKDEEP, Enum.Material.Metal, 0.3)
+            V.hats[#V.hats + 1] = { p = b, rel = hb * CFrame.new(0, 0.28, 0) * ZROT }
+            local m = newPart(Enum.PartType.Cylinder, Vector3.new(0.46, 0.36, 0.36), PINKMID, Enum.Material.SmoothPlastic, 0.28)
+            V.hats[#V.hats + 1] = { p = m, rel = hb * CFrame.new(0, 0.68, 0) * ZROT }
+            local t = newPart(Enum.PartType.Ball, Vector3.new(0.3, 0.3, 0.3), PINKGLOW, Enum.Material.Glass, 0.35)
+            V.hats[#V.hats + 1] = { p = t, rel = hb * CFrame.new(0, 1.02, 0) }
+            local light = Instance.new("PointLight")
+            light.Color = PINKGLOW; light.Range = 4; light.Brightness = 0.6
+            light.Parent = t
+        end
+
+    elseif style == "TopHat" then
+        local brim = newPart(Enum.PartType.Cylinder, Vector3.new(0.14, 3.3, 3.3), PINKMID, Enum.Material.SmoothPlastic, 0.3)
+        V.hats[#V.hats + 1] = { p = brim, rel = CFrame.new(0, 0.88, 0) * ZROT }
+        addLineRing(V.hats, 0.92, 1.65, 26, PINKGLOW, 0.11)
+        local crown = newPart(Enum.PartType.Cylinder, Vector3.new(2.2, 2.0, 2.0), PINKDEEP, Enum.Material.SmoothPlastic, 0.28)
+        V.hats[#V.hats + 1] = { p = crown, rel = CFrame.new(0, 1.95, 0) * ZROT }
+        local band = newPart(Enum.PartType.Cylinder, Vector3.new(0.24, 2.06, 2.06), PINKGLOW, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = band, rel = CFrame.new(0, 1.18, 0) * ZROT }
+        local lid = newPart(Enum.PartType.Cylinder, Vector3.new(0.08, 2.0, 2.0), PINKGLOW, Enum.Material.Glass, 0.4)
+        V.hats[#V.hats + 1] = { p = lid, rel = CFrame.new(0, 3.1, 0) * ZROT }
+
+    elseif style == "Ball" then
+        local outer = newPart(Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), PINKGLOW, Enum.Material.Glass, 0.62)
+        V.hats[#V.hats + 1] = { p = outer, rel = CFrame.new(0, 1.45, 0) }
+        local inner = newPart(Enum.PartType.Ball, Vector3.new(0.9, 0.9, 0.9), PINK, Enum.Material.Neon, 0.3)
+        V.hats[#V.hats + 1] = { p = inner, rel = CFrame.new(0, 1.45, 0) }
+
+    elseif style == "Cube" then
+        local outer = newPart(Enum.PartType.Block, Vector3.new(1.5, 1.5, 1.5), PINKGLOW, Enum.Material.Glass, 0.62)
+        V.hats[#V.hats + 1] = { p = outer, rel = CFrame.new(0, 1.35, 0) }
+        local inner = newPart(Enum.PartType.Block, Vector3.new(0.9, 0.9, 0.9), PINK, Enum.Material.Neon, 0.3)
+        V.hats[#V.hats + 1] = { p = inner, rel = CFrame.new(0, 1.35, 0) }
+
+    elseif style == "Triangle" then
+        local halfSide, height, baseY = 1.4, 1.5, 1.0
+        local layers = 12
+        local th = (height / layers) * 1.5
+        for i = 0, layers - 1 do
+            local f = i / (layers - 1)
+            local w = (halfSide * 2) * (1 - f) + 0.06
+            local slab = newPart(Enum.PartType.Block, Vector3.new(w, th, w), PINKGLOW, Enum.Material.Glass, 0.45)
+            V.hats[#V.hats + 1] = { p = slab, rel = CFrame.new(0, baseY + (i + 0.5) * (height / layers), 0) }
+        end
+        local apex = Vector3.new(0, baseY + height, 0)
+        for i = 0, 3 do
+            local a = i * (math.pi / 2)
+            local c1 = Vector3.new(math.cos(a) * halfSide, baseY, math.sin(a) * halfSide)
+            local c2 = Vector3.new(math.cos(a + math.pi / 2) * halfSide, baseY, math.sin(a + math.pi / 2) * halfSide)
+            local e = newPart(Enum.PartType.Cylinder, Vector3.new((c2 - c1).Magnitude + 0.1, 0.08, 0.08), PINK, Enum.Material.Neon, 0.15)
+            V.hats[#V.hats + 1] = { p = e, rel = CFrame.lookAt((c1 + c2) / 2, c2) * CFrame.Angles(0, math.rad(90), 0) }
+            local run = (apex - c1).Magnitude
+            local e2 = newPart(Enum.PartType.Cylinder, Vector3.new(run + 0.1, 0.08, 0.08), PINK, Enum.Material.Neon, 0.15)
+            V.hats[#V.hats + 1] = { p = e2, rel = CFrame.lookAt((c1 + apex) / 2, apex) * CFrame.Angles(0, math.rad(90), 0) }
+        end
+
+    elseif style == "Cage" then
+        for i = 1, 10 do
+            local a = (i - 1) * (2 * math.pi / 10)
+            local bar = newPart(Enum.PartType.Cylinder, Vector3.new(1.75, 0.11, 0.11), PINKMID, Enum.Material.SmoothPlastic, 0.3)
+            V.hats[#V.hats + 1] = { p = bar, rel = CFrame.new(math.cos(a) * 1.3, 1.25, math.sin(a) * 1.3) * ZROT }
+        end
+        addLineRing(V.hats, 0.55, 1.3, 22, PINKGLOW, 0.11)
+        addLineRing(V.hats, 1.95, 1.3, 22, PINKGLOW, 0.11)
+        local fin = newPart(Enum.PartType.Ball, Vector3.new(0.22, 0.22, 0.22), PINK, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = fin, rel = CFrame.new(0, 2.2, 0) }
+        local light = Instance.new("PointLight")
+        light.Color = PINKGLOW; light.Range = 5; light.Brightness = 0.7
+        light.Parent = fin
+
+    elseif style == "Sensei" then
+        addStackedCone(V.hats, 0.98, 2.55, 0.3, 0.95, 11, PINKDEEP, Enum.Material.SmoothPlastic, 0.24)
+        addStackedCone(V.hats, 0.98, 2.62, 0.36, 0.95, 6, PINKGLOW, Enum.Material.Glass, 0.68)
+        addLineRing(V.hats, 0.98, 2.55, 32, PINKGLOW, 0.12)
+        local cap = newPart(Enum.PartType.Cylinder, Vector3.new(0.14, 0.62, 0.62), PINK, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = cap, rel = CFrame.new(0, 1.98, 0) * ZROT }
+        local fin = newPart(Enum.PartType.Ball, Vector3.new(0.26, 0.26, 0.26), PINKGLOW, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = fin, rel = CFrame.new(0, 2.16, 0) }
+        local light = Instance.new("PointLight")
+        light.Color = PINKGLOW; light.Range = 6; light.Brightness = 0.8
+        light.Parent = fin
+
+    elseif style == "Witch" then
+        addStackedCone(V.hats, 1.0, 1.95, 0.28, 1.9, 12, PINKDEEP, Enum.Material.SmoothPlastic, 0.26)
+        local brim = newPart(Enum.PartType.Cylinder, Vector3.new(0.1, 5.4, 5.4), PINKMID, Enum.Material.SmoothPlastic, 0.28)
+        V.hats[#V.hats + 1] = { p = brim, rel = CFrame.new(0, 0.98, 0) * ZROT }
+        addLineRing(V.hats, 1.06, 1.95, 28, PINKGLOW, 0.11)
+        local tip = newPart(Enum.PartType.Ball, Vector3.new(0.3, 0.3, 0.3), PINKGLOW, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = tip, rel = CFrame.new(0, 2.98, 0) }
+
+    elseif style == "Crown" then
+        local band = newPart(Enum.PartType.Cylinder, Vector3.new(0.4, 2.6, 2.6), GOLD, Enum.Material.Metal, 0.3)
+        V.hats[#V.hats + 1] = { p = band, rel = CFrame.new(0, 1.15, 0) * ZROT }
+        local bandTop = newPart(Enum.PartType.Cylinder, Vector3.new(0.14, 2.66, 2.66), PINKGLOW, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = bandTop, rel = CFrame.new(0, 1.37, 0) * ZROT }
+        for i = 1, 6 do
+            local a = (i - 1) * (math.pi / 3)
+            local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+            local spike = newPart(Enum.PartType.Wedge, Vector3.new(0.62, 0.72, 0.6), GOLD, Enum.Material.Metal, 0.28)
+            V.hats[#V.hats + 1] = { p = spike, rel = CFrame.new(dir * 1.02, 1.7, 0) * CFrame.Angles(0, -(a + math.pi / 2), 0) }
+            local gem = newPart(Enum.PartType.Ball, Vector3.new(0.18, 0.18, 0.18), PINK, Enum.Material.Neon, 0.2)
+            V.hats[#V.hats + 1] = { p = gem, rel = CFrame.new(dir * 1.32, 1.15, 0) }
+        end
+
+    -- ===== Chinese hats =====
+    elseif style == "Tang Crown" then
+        -- traditional Tang dynasty guan / mianguan style
+        local base = newPart(Enum.PartType.Cylinder, Vector3.new(0.35, 2.4, 2.4), Color3.fromRGB(40, 20, 20), Enum.Material.SmoothPlastic, 0.15)
+        V.hats[#V.hats + 1] = { p = base, rel = CFrame.new(0, 1.05, 0) * ZROT }
+        local mid = newPart(Enum.PartType.Cylinder, Vector3.new(0.9, 1.9, 1.9), Color3.fromRGB(180, 30, 40), Enum.Material.SmoothPlastic, 0.12)
+        V.hats[#V.hats + 1] = { p = mid, rel = CFrame.new(0, 1.55, 0) * ZROT }
+        local top = newPart(Enum.PartType.Cylinder, Vector3.new(0.5, 1.4, 1.4), Color3.fromRGB(220, 180, 60), Enum.Material.Metal, 0.1)
+        V.hats[#V.hats + 1] = { p = top, rel = CFrame.new(0, 2.15, 0) * ZROT }
+        local fin = newPart(Enum.PartType.Ball, Vector3.new(0.35, 0.35, 0.35), GOLD, Enum.Material.Neon, 0.15)
+        V.hats[#V.hats + 1] = { p = fin, rel = CFrame.new(0, 2.55, 0) }
+        for i = 1, 4 do
+            local a = (i - 1) * (math.pi / 2)
+            local wing = newPart(Enum.PartType.Block, Vector3.new(0.12, 0.9, 0.5), Color3.fromRGB(200, 40, 50), Enum.Material.SmoothPlastic, 0.15)
+            V.hats[#V.hats + 1] = { p = wing, rel = CFrame.new(math.cos(a) * 1.15, 1.6, math.sin(a) * 1.15) * CFrame.Angles(0, -a, math.rad(15)) }
+        end
+
+    elseif style == "Qing Official" then
+        -- Qing dynasty official hat with peacock feather + red finial
+        local brim = newPart(Enum.PartType.Cylinder, Vector3.new(0.12, 3.6, 3.6), Color3.fromRGB(30, 30, 35), Enum.Material.SmoothPlastic, 0.2)
+        V.hats[#V.hats + 1] = { p = brim, rel = CFrame.new(0, 0.95, 0) * ZROT }
+        local dome = newPart(Enum.PartType.Ball, Vector3.new(2.2, 1.6, 2.2), Color3.fromRGB(25, 25, 30), Enum.Material.SmoothPlastic, 0.15)
+        V.hats[#V.hats + 1] = { p = dome, rel = CFrame.new(0, 1.55, 0) }
+        local finial = newPart(Enum.PartType.Ball, Vector3.new(0.4, 0.4, 0.4), Color3.fromRGB(220, 40, 40), Enum.Material.Neon, 0.1)
+        V.hats[#V.hats + 1] = { p = finial, rel = CFrame.new(0, 2.4, 0) }
+        local feather = newPart(Enum.PartType.Block, Vector3.new(0.08, 1.8, 0.25), Color3.fromRGB(40, 160, 80), Enum.Material.SmoothPlastic, 0.2)
+        V.hats[#V.hats + 1] = { p = feather, rel = CFrame.new(0.9, 2.6, 0) * CFrame.Angles(0, 0, math.rad(-35)) }
+        local tip = newPart(Enum.PartType.Ball, Vector3.new(0.2, 0.2, 0.2), Color3.fromRGB(60, 200, 100), Enum.Material.Neon, 0.15)
+        V.hats[#V.hats + 1] = { p = tip, rel = CFrame.new(1.35, 3.3, 0) }
+
+    elseif style == "Lotus Crown" then
+        -- lotus petal crown
+        for i = 1, 8 do
+            local a = (i - 1) * (math.pi / 4)
+            local petal = newPart(Enum.PartType.Wedge, Vector3.new(0.55, 1.1, 0.7), Color3.fromRGB(255, 120, 160), Enum.Material.Glass, 0.25)
+            V.hats[#V.hats + 1] = { p = petal, rel = CFrame.new(math.cos(a) * 0.9, 1.4, math.sin(a) * 0.9) * CFrame.Angles(math.rad(25), -a, 0) }
+        end
+        local center = newPart(Enum.PartType.Cylinder, Vector3.new(0.3, 1.3, 1.3), GOLD, Enum.Material.Metal, 0.15)
+        V.hats[#V.hats + 1] = { p = center, rel = CFrame.new(0, 1.2, 0) * ZROT }
+        local gem = newPart(Enum.PartType.Ball, Vector3.new(0.45, 0.45, 0.45), PINKGLOW, Enum.Material.Neon, 0.1)
+        V.hats[#V.hats + 1] = { p = gem, rel = CFrame.new(0, 1.55, 0) }
+
+    elseif style == "Dragon Horns" then
+        for _, s in ipairs({ -1, 1 }) do
+            local base = CFrame.new(0.5 * s, 0.5, 0) * CFrame.Angles(0, 0, math.rad(-30 * s))
+            for j = 1, 4 do
+                local r = 0.4 - j * 0.06
+                local seg = newPart(Enum.PartType.Cylinder, Vector3.new(0.4, r * 2, r * 2), Color3.fromRGB(200 + j * 10, 50, 40), Enum.Material.Metal, 0.15)
+                V.hats[#V.hats + 1] = { p = seg, rel = base * CFrame.new(0, 0.3 + j * 0.35, 0) * ZROT }
+            end
+            local tip = newPart(Enum.PartType.Ball, Vector3.new(0.22, 0.22, 0.22), GOLD, Enum.Material.Neon, 0.1)
+            V.hats[#V.hats + 1] = { p = tip, rel = base * CFrame.new(0, 1.85, 0) }
+        end
+        local brow = newPart(Enum.PartType.Block, Vector3.new(1.4, 0.15, 0.3), Color3.fromRGB(180, 40, 30), Enum.Material.SmoothPlastic, 0.2)
+        V.hats[#V.hats + 1] = { p = brow, rel = CFrame.new(0, 0.85, -0.5) }
+
+    elseif style == "Jade Pagoda" then
+        -- multi-tier pagoda hat
+        local tiers = {
+            { y = 0.95, r = 1.6, h = 0.2, c = Color3.fromRGB(60, 140, 100) },
+            { y = 1.25, r = 1.2, h = 0.25, c = Color3.fromRGB(80, 170, 120) },
+            { y = 1.6, r = 0.85, h = 0.3, c = Color3.fromRGB(100, 200, 140) },
+            { y = 2.0, r = 0.5, h = 0.35, c = Color3.fromRGB(120, 220, 160) },
+        }
+        for _, t in ipairs(tiers) do
+            local disc = newPart(Enum.PartType.Cylinder, Vector3.new(t.h, t.r * 2, t.r * 2), t.c, Enum.Material.Glass, 0.25)
+            V.hats[#V.hats + 1] = { p = disc, rel = CFrame.new(0, t.y, 0) * ZROT }
+            addLineRing(V.hats, t.y + t.h * 0.3, t.r * 0.95, 18, Color3.fromRGB(180, 255, 200), 0.08)
+        end
+        local peak = newPart(Enum.PartType.Ball, Vector3.new(0.3, 0.3, 0.3), GOLD, Enum.Material.Neon, 0.1)
+        V.hats[#V.hats + 1] = { p = peak, rel = CFrame.new(0, 2.35, 0) }
+
+    elseif style == "Phoenix Crest" then
+        -- phoenix wing crest
+        for _, s in ipairs({ -1, 1 }) do
+            for j = 1, 5 do
+                local a = math.rad(20 + j * 12) * s
+                local feather = newPart(Enum.PartType.Block, Vector3.new(0.12, 1.2 + j * 0.15, 0.35), Color3.fromRGB(255, 80 + j * 20, 40), Enum.Material.Glass, 0.2)
+                V.hats[#V.hats + 1] = { p = feather, rel = CFrame.new(0.3 * s, 1.2 + j * 0.15, -0.2) * CFrame.Angles(math.rad(-10), 0, a) }
+            end
+        end
+        local crest = newPart(Enum.PartType.Ball, Vector3.new(0.5, 0.5, 0.5), Color3.fromRGB(255, 60, 80), Enum.Material.Neon, 0.15)
+        V.hats[#V.hats + 1] = { p = crest, rel = CFrame.new(0, 1.3, 0) }
+        local light = Instance.new("PointLight")
+        light.Color = Color3.fromRGB(255, 100, 80); light.Range = 5; light.Brightness = 0.7
+        light.Parent = crest
+
+    elseif style == "Opera Mask" then
+        -- Beijing opera headdress
+        local band = newPart(Enum.PartType.Cylinder, Vector3.new(0.3, 2.5, 2.5), Color3.fromRGB(200, 30, 40), Enum.Material.SmoothPlastic, 0.15)
+        V.hats[#V.hats + 1] = { p = band, rel = CFrame.new(0, 1.1, 0) * ZROT }
+        for i = 1, 6 do
+            local a = (i - 1) * (math.pi / 3)
+            local pom = newPart(Enum.PartType.Ball, Vector3.new(0.35, 0.35, 0.35), (i % 2 == 0) and GOLD or Color3.fromRGB(255, 50, 60), Enum.Material.Neon, 0.1)
+            V.hats[#V.hats + 1] = { p = pom, rel = CFrame.new(math.cos(a) * 1.2, 1.5, math.sin(a) * 1.2) }
+        end
+        local top = newPart(Enum.PartType.Cylinder, Vector3.new(0.6, 1.0, 1.0), Color3.fromRGB(220, 40, 50), Enum.Material.SmoothPlastic, 0.12)
+        V.hats[#V.hats + 1] = { p = top, rel = CFrame.new(0, 1.9, 0) * ZROT }
+        local pearl = newPart(Enum.PartType.Ball, Vector3.new(0.28, 0.28, 0.28), WHITE, Enum.Material.Glass, 0.2)
+        V.hats[#V.hats + 1] = { p = pearl, rel = CFrame.new(0, 2.35, 0) }
+
+    elseif style == "Cloud Cap" then
+        -- soft cloud-layer hat (xiangyun style)
+        for i = 1, 5 do
+            local y = 0.9 + i * 0.22
+            local r = 1.5 - i * 0.2
+            local cloud = newPart(Enum.PartType.Ball, Vector3.new(r * 2, 0.6, r * 1.6), Color3.fromRGB(230, 235, 255), Enum.Material.Glass, 0.4 + i * 0.05)
+            V.hats[#V.hats + 1] = { p = cloud, rel = CFrame.new(0, y, 0) }
+        end
+        local core = newPart(Enum.PartType.Ball, Vector3.new(0.5, 0.5, 0.5), CYANC, Enum.Material.Neon, 0.2)
+        V.hats[#V.hats + 1] = { p = core, rel = CFrame.new(0, 1.5, 0) }
+
+    else -- fallback Crown
+        local band = newPart(Enum.PartType.Cylinder, Vector3.new(0.4, 2.6, 2.6), GOLD, Enum.Material.Metal, 0.3)
+        V.hats[#V.hats + 1] = { p = band, rel = CFrame.new(0, 1.15, 0) * ZROT }
+    end
+end
+
+-- ========================================================= aura
+
+local function buildAura()
+    clearAura()
+    local n, r = 44, 1.7
+    local step = 2 * math.pi / n
+    local segLen = 2 * r * math.sin(step / 2) * 1.04
+    for i = 1, n do
+        local seg = newPart(Enum.PartType.Cylinder, Vector3.new(segLen, 0.1, 0.1), PINKGLOW, Enum.Material.Neon, 0.08)
+        V.aura[#V.aura + 1] = { p = seg, idx = i - 1, step = step }
+    end
+    for i = 0, 3 do
+        local phi = math.rad(45 + i * 90)
+        local U = Vector3.new(math.cos(phi), 0, math.sin(phi))
+        local T = Vector3.new(-math.sin(phi), 0, math.cos(phi))
+        local corner = U * 2.5
+        for _, dir in ipairs({ T, U }) do
+            local p1 = corner
+            local p2 = corner + dir * 0.8
+            local arm = newPart(Enum.PartType.Cylinder, Vector3.new(0.83, 0.1, 0.1), PINK, Enum.Material.Neon, 0.12)
+            V.aura[#V.aura + 1] = {
+                p = arm,
+                rel = CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0),
+            }
+        end
+    end
+end
+
+-- ========================================================= sky engine (kept intact)
+
+local SKY_SAVED = nil
+local FB_SAVED, NOFOG_SAVED = nil, nil
+
+local function makeVantaSky(starCount, celestial)
+    local sky = Instance.new("Sky")
+    sky.Name = "VantaSky"
+    local t = "rbxasset://textures/sky/sky512_%s.tex"
+    sky.SkyboxBk = t:format("bk"); sky.SkyboxDn = t:format("dn")
+    sky.SkyboxFt = t:format("ft"); sky.SkyboxLf = t:format("lf")
+    sky.SkyboxRt = t:format("rt"); sky.SkyboxUp = t:format("up")
+    sky.CelestialBodiesShown = celestial
+    sky.SunAngularSize = celestial and 21 or 0
+    sky.MoonAngularSize = celestial and 11 or 0
+    sky.StarCount = starCount or 0
+    sky.Parent = Lighting
+end
+
+local function clearSkyObjects()
+    for _, n in ipairs({ "VantaCC", "VantaAtmo", "VantaBloom", "VantaSky" }) do
+        local o = Lighting:FindFirstChild(n)
+        if o then o:Destroy() end
+    end
+    if V.stars then
+        for _, s in ipairs(V.stars) do pcall(function() s.p:Destroy() end) end
+        V.stars = nil
+    end
+    if V.clouds then
+        for _, s in ipairs(V.clouds) do pcall(function() s.p:Destroy() end) end
+        V.clouds = {}
+    end
+    if V.rain then
+        pcall(function() V.rain.plate:Destroy() end)
+        V.rain = nil
+    end
+end
+
+local function stashGameSky()
+    if SKY_SAVED then return end
+    SKY_SAVED = { skies = {}, atmos = {}, ccs = {}, props = {
+        Brightness = Lighting.Brightness, Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient,
+        ClockTime = Lighting.ClockTime, FogStart = Lighting.FogStart, FogEnd = Lighting.FogEnd,
+        FogColor = Lighting.FogColor, ExposureCompensation = Lighting.ExposureCompensation,
+    } }
+    for _, inst in ipairs(Lighting:GetChildren()) do
+        if inst:IsA("Sky") then
+            inst.Parent = nil
+            SKY_SAVED.skies[#SKY_SAVED.skies + 1] = inst
+        elseif inst:IsA("Atmosphere") then
+            inst.Parent = nil
+            SKY_SAVED.atmos[#SKY_SAVED.atmos + 1] = inst
+        elseif inst:IsA("ColorCorrectionEffect") then
+            SKY_SAVED.ccs[#SKY_SAVED.ccs + 1] = { o = inst, e = inst.Enabled }
+            inst.Enabled = false
+        end
+    end
+end
+
+local function restoreLighting()
+    clearSkyObjects()
+    if not SKY_SAVED then return end
+    for _, s in ipairs(SKY_SAVED.skies) do pcall(function() s.Parent = Lighting end) end
+    for _, a in ipairs(SKY_SAVED.atmos) do pcall(function() a.Parent = Lighting end) end
+    for _, c in ipairs(SKY_SAVED.ccs) do pcall(function() c.o.Enabled = c.e end) end
+    local p = SKY_SAVED.props
+    Lighting.Brightness = p.Brightness
+    Lighting.Ambient = p.Ambient
+    Lighting.OutdoorAmbient = p.OutdoorAmbient
+    Lighting.ClockTime = p.ClockTime
+    Lighting.FogStart = p.FogStart
+    Lighting.FogEnd = p.FogEnd
+    Lighting.FogColor = p.FogColor
+    Lighting.ExposureCompensation = p.ExposureCompensation
+    SKY_SAVED = nil
+end
+
+local function makeStarDome(count, palette, minS, maxS)
+    if not V.stars then V.stars = {} end
+    local rng = Random.new()
+    for _ = 1, count do
+        local dir = rng:NextUnitVector()
+        if dir.Y < -0.1 then
+            dir = Vector3.new(dir.X, math.abs(dir.Y) * 0.3 + 0.05, dir.Z)
+            if dir.Magnitude > 0 then dir = dir.Unit end
+        end
+        local size = rng:NextNumber(minS, maxS)
+        local p = newPart(Enum.PartType.Ball, Vector3.new(size, size, size),
+            palette[rng:NextInteger(1, #palette)], Enum.Material.Neon, 0.1)
+        V.stars[#V.stars + 1] = { p = p, off = dir * 300, ph = rng:NextNumber(0, math.pi * 2), tw = true }
+    end
+end
+
+local function makeClouds(count)
+    if not V.clouds then V.clouds = {} end
+    local rng = Random.new()
+    for _ = 1, count do
+        local p = newPart(Enum.PartType.Ball,
+            Vector3.new(rng:NextNumber(26, 44), rng:NextNumber(12, 20), rng:NextNumber(22, 38)),
+            Color3.fromRGB(248, 246, 252), Enum.Material.SmoothPlastic, 0.22)
+        V.clouds[#V.clouds + 1] = { p = p, ang = rng:NextNumber(0, math.pi * 2), rad = rng:NextNumber(60, 130), y = rng:NextNumber(65, 110), spd = rng:NextNumber(0.008, 0.02) }
+    end
+end
+
+local function makeWeather(kind)
+    local plate = newPart(Enum.PartType.Block, Vector3.new(180, 0.4, 180), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic, 1)
+    local pe = Instance.new("ParticleEmitter")
+    pe.EmissionDirection = Enum.NormalId.Bottom
+    pe.Orientation = Enum.ParticleOrientation.VelocityParallel
+    pe.Parent = plate
+
+    if kind == "Rain" then
+        pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.Color = ColorSequence.new(Color3.fromRGB(190, 200, 230), Color3.fromRGB(160, 175, 210))
+        pe.Rate = 520
+        pe.Lifetime = NumberRange.new(0.85, 1.25)
+        pe.Speed = NumberRange.new(60, 85)
+        pe.Acceleration = Vector3.new(0, -55, 0)
+        pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0.08) })
+        pe.Squash = NumberSequence.new(3.2)
+        pe.Transparency = NumberSequence.new(0.35)
+        pe.LightEmission = 0.35
+    elseif kind == "Acid" then
+        pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.Color = ColorSequence.new(Color3.fromRGB(120, 255, 80), Color3.fromRGB(60, 200, 40))
+        pe.Rate = 480
+        pe.Lifetime = NumberRange.new(0.9, 1.3)
+        pe.Speed = NumberRange.new(50, 75)
+        pe.Acceleration = Vector3.new(0, -48, 0)
+        pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.22), NumberSequenceKeypoint.new(1, 0.1) })
+        pe.Squash = NumberSequence.new(2.8)
+        pe.Transparency = NumberSequence.new(0.3)
+        pe.LightEmission = 0.7
+    elseif kind == "Snow" then
+        pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(230, 240, 255))
+        pe.Rate = 220
+        pe.Lifetime = NumberRange.new(2.5, 4.0)
+        pe.Speed = NumberRange.new(6, 14)
+        pe.Acceleration = Vector3.new(0, -4, 0)
+        pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0.2) })
+        pe.Squash = NumberSequence.new(0.2)
+        pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(0.8, 0.35), NumberSequenceKeypoint.new(1, 1) })
+        pe.LightEmission = 0.4
+        pe.RotSpeed = NumberRange.new(-40, 40)
+    end
+
+    V.rain = { plate = plate, kind = kind }
+end
+
+local function applySky(mode)
+    restoreLighting()
+    if mode == "Default" then return end
+    stashGameSky()
+    V.stars = {}
+    local cc = Instance.new("ColorCorrectionEffect")
+    cc.Name = "VantaCC"
+
+    if mode == "Galaxy" then
+        makeVantaSky(2200, false)
+        Lighting.ClockTime = 0
+        Lighting.Brightness = 1.15
+        Lighting.Ambient = Color3.fromRGB(95, 30, 90)
+        Lighting.OutdoorAmbient = Color3.fromRGB(70, 20, 80)
+        Lighting.FogColor = Color3.fromRGB(80, 20, 90)
+        Lighting.FogStart = 40
+        Lighting.FogEnd = 280
+        cc.TintColor = Color3.fromRGB(255, 190, 240)
+        cc.Saturation = 0.28
+        cc.Contrast = 0.12
+        cc.Parent = Lighting
+        local at = Instance.new("Atmosphere"); at.Name = "VantaAtmo"
+        at.Density = 0.42
+        at.Color = Color3.fromRGB(180, 60, 160)
+        at.Decay = Color3.fromRGB(70, 15, 80)
+        at.Glare = 0.35
+        at.Haze = 2.4
+        at.Parent = Lighting
+        makeStarDome(120, {
+            Color3.new(1, 1, 1), PINKGLOW, Color3.fromRGB(255, 140, 220),
+            PURPLE, GOLD, Color3.fromRGB(180, 120, 255)
+        }, 0.45, 1.5)
+
+    elseif mode == "Space" then
+        makeVantaSky(5000, false)
+        Lighting.ClockTime = 0
+        Lighting.Brightness = 0.45
+        Lighting.Ambient = Color3.fromRGB(8, 10, 22)
+        Lighting.OutdoorAmbient = Color3.fromRGB(6, 8, 18)
+        Lighting.FogColor = Color3.fromRGB(5, 8, 20)
+        Lighting.FogStart = 80
+        Lighting.FogEnd = 400
+        cc.TintColor = Color3.fromRGB(200, 215, 255)
+        cc.Saturation = -0.35
+        cc.Contrast = 0.25
+        cc.Parent = Lighting
+        local at = Instance.new("Atmosphere"); at.Name = "VantaAtmo"
+        at.Density = 0.55
+        at.Color = Color3.fromRGB(12, 14, 30)
+        at.Decay = Color3.fromRGB(4, 5, 14)
+        at.Haze = 1.8
+        at.Parent = Lighting
+        makeStarDome(160, {
+            WHITE, Color3.fromRGB(180, 200, 255), CYANC,
+            Color3.fromRGB(255, 220, 180), Color3.fromRGB(200, 160, 255)
+        }, 0.35, 1.4)
+
+    elseif mode == "Rain" then
+        makeVantaSky(0, false)
+        Lighting.ClockTime = 11
+        Lighting.Brightness = 0.75
+        Lighting.Ambient = Color3.fromRGB(70, 75, 90)
+        Lighting.OutdoorAmbient = Color3.fromRGB(55, 60, 75)
+        Lighting.FogColor = Color3.fromRGB(130, 140, 160)
+        Lighting.FogStart = 15
+        Lighting.FogEnd = 200
+        cc.TintColor = Color3.fromRGB(190, 200, 220)
+        cc.Saturation = -0.4
+        cc.Contrast = 0.1
+        cc.Parent = Lighting
+        local at = Instance.new("Atmosphere"); at.Name = "VantaAtmo"
+        at.Density = 0.58
+        at.Color = Color3.fromRGB(140, 150, 170)
+        at.Decay = Color3.fromRGB(90, 100, 120)
+        at.Haze = 2.8
+        at.Parent = Lighting
+        makeWeather("Rain")
+
+    elseif mode == "Acid Rain" then
+        makeVantaSky(0, false)
+        Lighting.ClockTime = 10
+        Lighting.Brightness = 0.85
+        Lighting.Ambient = Color3.fromRGB(50, 90, 40)
+        Lighting.OutdoorAmbient = Color3.fromRGB(40, 75, 30)
+        Lighting.FogColor = Color3.fromRGB(80, 160, 50)
+        Lighting.FogStart = 10
+        Lighting.FogEnd = 180
+        cc.TintColor = Color3.fromRGB(160, 255, 120)
+        cc.Saturation = 0.15
+        cc.Contrast = 0.14
+        cc.Parent = Lighting
+        local at = Instance.new("Atmosphere"); at.Name = "VantaAtmo"
+        at.Density = 0.6
+        at.Color = Color3.fromRGB(90, 180, 60)
+        at.Decay = Color3.fromRGB(40, 90, 25)
+        at.Haze = 3.0
+        at.Parent = Lighting
+        makeWeather("Acid")
+
+    elseif mode == "Snow" then
+        makeVantaSky(400, true)
+        Lighting.ClockTime = 13
+        Lighting.Brightness = 1.6
+        Lighting.Ambient = Color3.fromRGB(160, 175, 195)
+        Lighting.OutdoorAmbient = Color3.fromRGB(140, 155, 180)
+        Lighting.FogColor = Color3.fromRGB(210, 220, 235)
+        Lighting.FogStart = 20
+        Lighting.FogEnd = 220
+        cc.TintColor = Color3.fromRGB(230, 240, 255)
+        cc.Saturation = -0.15
+        cc.Contrast = 0.05
+        cc.Parent = Lighting
+        local at = Instance.new("Atmosphere"); at.Name = "VantaAtmo"
+        at.Density = 0.4
+        at.Color = Color3.fromRGB(200, 215, 235)
+        at.Decay = Color3.fromRGB(160, 175, 200)
+        at.Haze = 2.2
+        at.Parent = Lighting
+        makeWeather("Snow")
+        makeStarDome(30, { WHITE, Color3.fromRGB(220, 230, 255) }, 0.3, 0.7)
+    end
+end
+
+local function applyFullbright(v)
+    if v then
+        FB_SAVED = { B = Lighting.Brightness, A = Lighting.Ambient, O = Lighting.OutdoorAmbient, E = Lighting.ExposureCompensation }
+        Lighting.Brightness = 3
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+    elseif FB_SAVED then
+        Lighting.Brightness = FB_SAVED.B
+        Lighting.Ambient = FB_SAVED.A
+        Lighting.OutdoorAmbient = FB_SAVED.O
+        Lighting.ExposureCompensation = FB_SAVED.E
+        FB_SAVED = nil
+    end
+end
+
+local function applyNoFog(v)
+    if v then
+        NOFOG_SAVED = { S = Lighting.FogStart, E = Lighting.FogEnd }
+        Lighting.FogStart = 0; Lighting.FogEnd = 100000
+        local at = Lighting:FindFirstChildOfClass("Atmosphere")
+        if at and at.Name ~= "VantaAtmo" then
+            NOFOG_SAVED.atmo = at
+            at.Enabled = false
+        end
+    elseif NOFOG_SAVED then
+        Lighting.FogStart = NOFOG_SAVED.S
+        Lighting.FogEnd = NOFOG_SAVED.E
+        if NOFOG_SAVED.atmo then NOFOG_SAVED.atmo.Enabled = true end
+        NOFOG_SAVED = nil
+    end
+end
+
+-- ========================================================= jump trail
+
+local function spawnTrail(pos)
+    for _, tr in ipairs(V.trails) do
+        if not tr.landT then tr.landT = tick() - 0.15 end
+    end
+    local n = 36
+    local segs = {}
+    for i = 1, n do
+        segs[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(1, 0.11, 0.11), PURPLE, Enum.Material.Neon, 0.25), i = i }
+    end
+    V.trails[#V.trails + 1] = { segs = segs, pos = pos, born = tick() }
+end
+
+local function bindTrail()
+    local h = humanoid()
+    if not h then return end
+    if V.trailConn then V.trailConn:Disconnect() end
+    V.trailConn = h.StateChanged:Connect(function(_, new)
+        if not Config.JumpTrail then return end
+        if new == Enum.HumanoidStateType.Jumping then
+            local r = root()
+            if r then spawnTrail(r.Position - Vector3.new(0, 3, 0)) end
+        elseif new == Enum.HumanoidStateType.Landed then
+            for _, tr in ipairs(V.trails) do
+                if not tr.landT then tr.landT = tick() end
+            end
+        end
+    end)
+end
+
+local function updateTrails(t)
+    for i = #V.trails, 1, -1 do
+        local tr = V.trails[i]
+        local age = t - tr.born
+        local grow = 1 - (1 - math.min(1, age / 0.35)) ^ 2
+        local r = 0.8 + 2.8 * grow
+        local alpha = 0.22 + 0.3 * grow
+        local dead = false
+        if tr.landT then
+            local k = math.min(1, (t - tr.landT) / 0.3)
+            r = r * (1 - k) + 0.03 * k
+            alpha = alpha + 0.78 * k
+            dead = k >= 1
+        end
+        local n = #tr.segs
+        local step = 2 * math.pi / n
+        for _, s in ipairs(tr.segs) do
+            local a1 = s.i * step
+            local p1 = tr.pos + ringPoint(r, 0.05, a1)
+            local p2 = tr.pos + ringPoint(r, 0.05, a1 + step)
+            s.p.Size = Vector3.new((p2 - p1).Magnitude * 1.04, 0.11, 0.11)
+            s.p.Transparency = math.clamp(alpha, 0, 1)
+            s.p.CFrame = CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+        end
+        if dead then
+            for _, s in ipairs(tr.segs) do pcall(function() s.p:Destroy() end) end
+            table.remove(V.trails, i)
+        end
+    end
+end
+
+-- ========================================================= Minecraft / Pulse / Aura visuals
+
+local function spawnHitParticles(pos)
+    if not Config.HitParticles then return end
+    local style = Config.HitParticleStyle
+    local rng = Random.new()
+    local palette = {
+        Color3.fromRGB(255, 80, 200), Color3.fromRGB(80, 255, 160),
+        Color3.fromRGB(100, 200, 255), Color3.fromRGB(255, 220, 60),
+        Color3.fromRGB(180, 100, 255), WHITE, GOLD
+    }
+    local count = (style == "Stars") and 18 or 12
+    for i = 1, count do
+        local col
+        if style == "Crit" then
+            col = Color3.fromRGB(255, 40 + rng:NextInteger(0, 40), 40)
+        elseif style == "Cubes" then
+            col = palette[rng:NextInteger(1, #palette)]
+        else
+            col = palette[rng:NextInteger(1, #palette)]
+        end
+        local shape = (style == "Cubes") and Enum.PartType.Block or Enum.PartType.Ball
+        local sz = (style == "Stars") and rng:NextNumber(0.2, 0.45) or 0.28
+        local p = newPart(shape, Vector3.new(sz, sz, sz), col, Enum.Material.Neon, 0.05)
+        local dir = rng:NextUnitVector()
+        V.hitParts[#V.hitParts + 1] = {
+            p = p, pos = pos + dir * 0.3, vel = dir * rng:NextNumber(10, 22),
+            born = tick(), life = rng:NextNumber(0.5, 1.0),
+        }
+    end
+end
+
+local function spawnDamageNumber(pos, dmg, crit)
+    if not Config.DamageNumbers then return end
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.fromOffset(80, 40)
+    bb.StudsOffset = Vector3.new(0, 2, 0)
+    bb.AlwaysOnTop = true
+    bb.Adornee = nil
+    local part = newPart(Enum.PartType.Ball, Vector3.new(0.1, 0.1, 0.1), WHITE, Enum.Material.SmoothPlastic, 1)
+    part.CFrame = CFrame.new(pos)
+    bb.Adornee = part
+    bb.Parent = part
+    local tl = Instance.new("TextLabel")
+    tl.Size = UDim2.new(1, 0, 1, 0)
+    tl.BackgroundTransparency = 1
+    tl.Font = F_TITLE
+    tl.TextSize = crit and 22 or 16
+    tl.TextColor3 = crit and Color3.fromRGB(255, 50, 50) or GOLD
+    tl.TextStrokeTransparency = 0.3
+    tl.Text = tostring(math.floor(dmg))
+    tl.Parent = bb
+    V.dmgNums[#V.dmgNums + 1] = { part = part, bb = bb, born = tick(), y = 0 }
+end
+
+local function updateHitFx(t)
+    for i = #V.hitParts, 1, -1 do
+        local h = V.hitParts[i]
+        local age = t - h.born
+        if age > h.life then
+            pcall(function() h.p:Destroy() end)
+            table.remove(V.hitParts, i)
+        else
+            h.pos = h.pos + h.vel * 0.016
+            h.vel = h.vel + Vector3.new(0, -20, 0) * 0.016
+            h.p.CFrame = CFrame.new(h.pos) * CFrame.Angles(age * 4, age * 3, 0)
+            h.p.Transparency = age / h.life
+            local s = 0.25 * (1 - age / h.life)
+            h.p.Size = Vector3.new(s, s, s)
+        end
+    end
+    for i = #V.dmgNums, 1, -1 do
+        local d = V.dmgNums[i]
+        local age = t - d.born
+        if age > 1.2 then
+            pcall(function() d.part:Destroy() end)
+            table.remove(V.dmgNums, i)
+        else
+            d.y = d.y + 0.04
+            d.part.CFrame = CFrame.new(d.part.Position + Vector3.new(0, 0.04, 0))
+            if d.bb and d.bb:FindFirstChild("TextLabel") then
+                d.bb.TextLabel.TextTransparency = math.clamp(age / 1.2, 0, 1)
+            end
+        end
+    end
+end
+
+local function updateBodyGlow()
+    if not Config.BodyGlow then
+        for plr, hl in pairs(V.bodyGlow) do
+            pcall(function() hl:Destroy() end)
+            V.bodyGlow[plr] = nil
+        end
+        return
+    end
+    local col = Theme.Accent
+    if Config.BodyGlowColor == "Cyan" then col = CYANC
+    elseif Config.BodyGlowColor == "Gold" then col = GOLD
+    elseif Config.BodyGlowColor == "White" then col = WHITE
+    elseif Config.BodyGlowColor == "Green" then col = GREENC
+    elseif Config.BodyGlowColor == "Purple" then col = PURPLE
+    elseif Config.BodyGlowColor == "Rainbow" then col = Color3.fromHSV((tick() % 6) / 6, 0.7, 1)
+    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local c = plr.Character
+        if c then
+            local hl = V.bodyGlow[plr]
+            if not hl or hl.Parent ~= c then
+                if hl then hl:Destroy() end
+                hl = Instance.new("Highlight")
+                hl.FillTransparency = 0.7
+                hl.OutlineTransparency = 0.3
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = c
+                V.bodyGlow[plr] = hl
+            end
+            hl.FillColor = col
+            hl.OutlineColor = col
+        end
+    end
+end
+
+local function updateFrameESP()
+    if not Config.FrameESP then
+        for plr, d in pairs(V.frameEsp) do
+            for _, l in ipairs(d) do pcall(function() l:Remove() end) end
+            V.frameEsp[plr] = nil
+        end
+        return
+    end
+    if typeof(Drawing) ~= "table" then return end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local c = plr.Character
+            local hrp = c and c:FindFirstChild("HumanoidRootPart")
+            local head = c and c:FindFirstChild("Head")
+            if hrp and head then
+                local top, on1 = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1, 0))
+                local bot, on2 = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+                if on1 and on2 then
+                    local hpx = math.abs(bot.Y - top.Y)
+                    local w = hpx * 0.7
+                    local x = (top.X + bot.X) / 2 - w / 2
+                    local y = math.min(top.Y, bot.Y)
+                    local lines = V.frameEsp[plr]
+                    if not lines then
+                        lines = {}
+                        for i = 1, 4 do
+                            lines[i] = Drawing.new("Line")
+                            lines[i].Thickness = 2
+                            lines[i].Color = Theme.Accent
+                        end
+                        V.frameEsp[plr] = lines
+                    end
+                    local pts = {
+                        { Vector2.new(x, y), Vector2.new(x + w, y) },
+                        { Vector2.new(x + w, y), Vector2.new(x + w, y + hpx) },
+                        { Vector2.new(x + w, y + hpx), Vector2.new(x, y + hpx) },
+                        { Vector2.new(x, y + hpx), Vector2.new(x, y) },
+                    }
+                    for i, p in ipairs(pts) do
+                        lines[i].From = p[1]; lines[i].To = p[2]
+                        lines[i].Color = Theme.Accent
+                        lines[i].Visible = true
+                    end
+                elseif V.frameEsp[plr] then
+                    for _, l in ipairs(V.frameEsp[plr]) do l.Visible = false end
+                end
+            end
+        end
+    end
+end
+
+local function updateCubes(t)
+    if not Config.Cubes then
+        for _, c in ipairs(V.cubes) do pcall(function() c.p:Destroy() end) end
+        V.cubes = {}
+        return
+    end
+    local r = root()
+    if not r then return end
+    if #V.cubes == 0 then
+        for i = 1, 6 do
+            local p = newPart(Enum.PartType.Block, Vector3.new(0.6, 0.6, 0.6), Theme.Accent, Enum.Material.Neon, 0.3)
+            V.cubes[i] = { p = p, i = i }
+        end
+    end
+    for _, c in ipairs(V.cubes) do
+        local a = t * 1.5 + c.i * (math.pi * 2 / 6)
+        local pos = r.Position + ringPoint(Config.CubesDist, 1 + math.sin(t * 2 + c.i) * 0.5, a)
+        c.p.CFrame = CFrame.new(pos) * CFrame.Angles(t, a, t * 0.5)
+        c.p.Color = Theme.Accent
+    end
+end
+
+local function updateWorldParticles(t)
+    if not Config.WorldParticles then
+        for _, p in ipairs(V.worldParts) do pcall(function() p.p:Destroy() end) end
+        V.worldParts = {}
+        return
+    end
+    local r = root()
+    if not r then return end
+    if #V.worldParts < 20 then
+        local rng = Random.new()
+        for i = 1, 20 - #V.worldParts do
+            local p = newPart(Enum.PartType.Ball, Vector3.new(0.2, 0.2, 0.2), Theme.Accent, Enum.Material.Neon, 0.2)
+            V.worldParts[#V.worldParts + 1] = {
+                p = p,
+                ang = rng:NextNumber(0, math.pi * 2),
+                rad = rng:NextNumber(3, 10),
+                y = rng:NextNumber(-1, 3),
+                spd = rng:NextNumber(0.5, 1.5),
+                ph = rng:NextNumber(0, math.pi * 2),
+            }
+        end
+    end
+    for _, s in ipairs(V.worldParts) do
+        local a = t * s.spd + s.ang
+        local pos = r.Position + Vector3.new(math.cos(a) * s.rad, s.y + math.sin(t * 2 + s.ph) * 0.4, math.sin(a) * s.rad)
+        s.p.CFrame = CFrame.new(pos)
+        s.p.Color = Theme.Accent
+        s.p.Transparency = 0.2 + 0.3 * (0.5 + 0.5 * math.sin(t * 3 + s.ph))
+    end
+end
+
+local function updateTargetESP(t)
+    if not Config.TargetESP then return end
+    local tg = nil
+    -- use aim target if available
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local bestD = 200
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local head = plr.Character:FindFirstChild("Head")
+            if head then
+                local pos, on = Camera:WorldToViewportPoint(head.Position)
+                if on then
+                    local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                    if d < bestD then bestD = d; tg = head end
+                end
+            end
+        end
+    end
+    if not tg then return end
+    -- rotating rings around target
+    if not V.targetRings then V.targetRings = {} end
+    if #V.targetRings == 0 then
+        for i = 1, 3 do
+            local segs = {}
+            for j = 1, 24 do
+                segs[j] = newPart(Enum.PartType.Cylinder, Vector3.new(0.3, 0.08, 0.08), Theme.Accent, Enum.Material.Neon, 0.15)
+            end
+            V.targetRings[i] = segs
+        end
+    end
+    local base = tg.Position
+    for ri, segs in ipairs(V.targetRings) do
+        local n = #segs
+        local step = 2 * math.pi / n
+        local rr = 1.2 + ri * 0.45
+        local spin = t * (1.8 + ri * 0.4)
+        local tilt = CFrame.new(base) * CFrame.Angles(math.rad(15 * ri), spin, math.rad(10 * ri))
+        for j, p in ipairs(segs) do
+            if p and p.Parent then
+                local a1 = (j - 1) * step
+                local p1 = (tilt * CFrame.new(ringPoint(rr, 0, a1))).Position
+                local p2 = (tilt * CFrame.new(ringPoint(rr, 0, a1 + step))).Position
+                local mid = (p1 + p2) * 0.5
+                p.Size = Vector3.new((p2 - p1).Magnitude * 1.04, 0.08, 0.08)
+                p.CFrame = CFrame.lookAt(mid, p2) * CFrame.Angles(0, math.rad(90), 0)
+                p.Color = Theme.Accent
+            end
+        end
+    end
+end
+
+local function updateLowHP()
+    local h = humanoid()
+    if not h then return end
+    local hp = h.Health
+    local max = h.MaxHealth
+    local ratio = hp / max
+    if Config.LowHP and ratio < 0.3 then
+        if not V.lowHpGui then
+            local f = mk("Frame", {
+                Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(180, 20, 40),
+                BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 50,
+            }, gui)
+            V.lowHpGui = f
+        end
+        V.lowHpGui.BackgroundTransparency = 0.7 + 0.2 * math.sin(tick() * 6)
+    elseif V.lowHpGui then
+        V.lowHpGui:Destroy()
+        V.lowHpGui = nil
+    end
+end
+
+-- ========================================================= player decor (kept)
+
+local DECOR_COLORS = { Pink = PINKGLOW, Cyan = CYANC, Gold = GOLD, White = Color3.new(1, 1, 1) }
+local function decorColor(t)
+    if Config.DecorColor == "Rainbow" then return Color3.fromHSV((t % 6) / 6, 0.75, 1) end
+    return DECOR_COLORS[Config.DecorColor] or PINKGLOW
+end
+
+local function clearDecor(plr)
+    local d = V.decor[plr]
+    if d then
+        for _, s in ipairs(d) do pcall(function() s.p:Destroy() end) end
+        V.decor[plr] = nil
+    end
+end
+
+local function anchorFor(plr, prp)
+    local yaw
+    if plr == LocalPlayer then
+        yaw = V.stableYaw
+    else
+        local _, y, _ = prp.CFrame:ToOrientation()
+        yaw = y
+    end
+    return CFrame.new(prp.Position) * CFrame.Angles(0, yaw, 0)
+end
+
+local function dynRing(segs, cf, t, spd, r, y, tiltCF)
+    local n = #segs
+    local step = 2 * math.pi / n
+    for _, s in ipairs(segs) do
+        local a1 = t * spd + (s.i - 1) * step
+        local p1 = ((tiltCF or CFrame.identity) * CFrame.new(ringPoint(r, y, a1))).Position
+        local p2 = ((tiltCF or CFrame.identity) * CFrame.new(ringPoint(r, y, a1 + step))).Position
+        s.p.Size = Vector3.new((p2 - p1).Magnitude * 1.04, s.th, s.th)
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+
+local DecorUpdaters = {}
+DecorUpdaters["Ghost"] = function(segs, cf, t, spd)
+    segs[1].p.CFrame = cf * CFrame.new(0, 0.8 + math.sin(t * 2 * spd) * 0.25, 0) * CFrame.Angles(0, t * spd, 0)
+end
+DecorUpdaters["Brackets"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local a = t * spd + (s.i - 1) * math.pi / 2
+        local pos = ringPoint(1.7, 0.35, a)
+        local T = Vector3.new(-math.sin(a), 0, math.cos(a))
+        local U = Vector3.new(math.cos(a), 0, math.sin(a))
+        local p1, p2
+        if s.arm == 1 then p1, p2 = pos, pos + T * 0.55 else p1, p2 = pos, pos + U * 0.55 end
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+DecorUpdaters["Diamonds"] = function(segs, cf, t, spd)
+    for i, s in ipairs(segs) do
+        local a = t * spd + (i - 1) * (2 * math.pi / 3)
+        s.p.CFrame = cf * CFrame.new(ringPoint(1.45, s.h, a)) * CFrame.Angles(math.rad(45), 0, math.rad(45))
+    end
+end
+DecorUpdaters["Ring"] = function(segs, cf, t, spd)
+    dynRing(segs, cf, t, spd * 1.2, 2.15, 0.1, CFrame.Angles(math.rad(25), 0, 0))
+end
+DecorUpdaters["Helix"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local base = t * spd * 2 + s.off
+        local p1 = ringPoint(1.25, -1.1 + (s.j - 1) * s.dy, base + (s.j - 1) * s.step)
+        local p2 = ringPoint(1.25, -1.1 + s.j * s.dy, base + s.j * s.step)
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+DecorUpdaters["Tornado"] = function(segs, cf, t, spd)
+    local RS = { { 3.4, 0.95, -0.9 }, { 2.6, 1.5, -0.05 }, { 1.9, 2.05, 0.8 } }
+    for _, s in ipairs(segs) do
+        local sp, r, y = RS[s.ring][1], RS[s.ring][2], RS[s.ring][3]
+        local step = 2 * math.pi / s.n
+        local a1 = t * spd * sp + (s.i - 1) * step
+        local p1 = ringPoint(r, y, a1)
+        local p2 = ringPoint(r, y, a1 + step)
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+local function wingUpdate(segs, cf, t, spd, scale, flapSpeed)
+    local flap = math.sin(t * flapSpeed * spd) * 0.5
+    for _, s in ipairs(segs) do
+        local ang = s.i * 0.24 * scale
+        s.p.CFrame = cf
+            * CFrame.new(s.side * (0.38 * scale + s.i * 0.4 * scale), 0.4 + math.sin(ang) * 1.0 * scale, 0.5 * scale + s.i * 0.1 * scale)
+            * CFrame.Angles(0, -s.side * ang * 0.55, s.side * (ang * 1.4 + flap))
+    end
+end
+DecorUpdaters["Wings"] = function(segs, cf, t, spd) wingUpdate(segs, cf, t, spd, 1, 2.4) end
+DecorUpdaters["Admin Wings"] = function(segs, cf, t, spd) wingUpdate(segs, cf, t, spd, 1.7, 1.5) end
+DecorUpdaters["Shield"] = function(segs, cf, t, spd)
+    segs[1].p.CFrame = cf
+    segs[1].p.Transparency = 0.5 + 0.14 * math.sin(t * 2 * spd)
+    dynRing(segs.ring, cf, t, spd * 0.8, 3.45, 0, CFrame.Angles(math.rad(18), 0, 0))
+end
+DecorUpdaters["Pulse"] = function(segs, cf, t, spd)
+    local ground = CFrame.new(cf.Position - Vector3.new(0, 2.7, 0)) * ZROT
+    for i, s in ipairs(segs) do
+        local ph = (t * spd * 0.45 + (i - 1) / 3) % 1
+        local r = 0.9 + ph * 2.8
+        s.p.Size = Vector3.new(0.1, r * 2, r * 2)
+        s.p.Transparency = 0.15 + 0.75 * ph
+        s.p.CFrame = ground
+    end
+end
+DecorUpdaters["Nova"] = function(segs, cf, t, spd)
+    local ph = (t * spd * 0.5) % 1
+    local r = 0.6 + 3.2 * ph
+    local alpha = 0.12 + 0.8 * ph
+    dynRing(segs.h, cf, t, 0, r, -0.4, CFrame.identity)
+    dynRing(segs.v, cf, t, spd * 0.8, r, 0, CFrame.Angles(0, 0, math.rad(90)))
+    for _, s in ipairs(segs.h) do s.p.Transparency = math.clamp(alpha, 0, 1) end
+    for _, s in ipairs(segs.v) do s.p.Transparency = math.clamp(alpha, 0, 1) end
+    segs.core.Size = Vector3.new(0.12, 1.2 * (1 - ph) + 0.2, 1.2 * (1 - ph) + 0.2)
+    segs.core.Transparency = 0.1 + 0.8 * ph
+    segs.core.CFrame = cf * ZROT
+end
+DecorUpdaters["Flame"] = function(segs, cf, t, spd)
+    segs[1].p.CFrame = CFrame.new(cf.Position - Vector3.new(0, 2.4, 0))
+end
+DecorUpdaters["Cubes"] = function(segs, cf, t, spd)
+    for i, s in ipairs(segs) do
+        local a = t * spd * (1.6 + i * 0.5) + i * 2.1
+        s.p.CFrame = cf * CFrame.new(ringPoint(2.0, -0.4 + (i - 1) * 0.55, a)) * CFrame.Angles(t, a, 0)
+    end
+end
+DecorUpdaters["Star"] = function(segs, cf, t, spd)
+    local RS = { { 1.4, math.rad(20), 1.0, -0.3 }, { 2.0, math.rad(-14), 1.35, 0.15 }, { 2.6, math.rad(10), 1.7, 0.4 } }
+    for _, s in ipairs(segs) do
+        local cfg = RS[s.ring]
+        local step = 2 * math.pi / s.n
+        local tiltCF = CFrame.Angles(cfg[2], 0, 0)
+        local a1 = t * spd * cfg[3] + (s.i - 1) * step
+        local p1 = (tiltCF * CFrame.new(ringPoint(cfg[1], cfg[4], a1))).Position
+        local p2 = (tiltCF * CFrame.new(ringPoint(cfg[1], cfg[4], a1 + step))).Position
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+DecorUpdaters["Blades"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local a = t * spd * 3 + (s.i - 1) * (2 * math.pi / #segs)
+        local pos = ringPoint(1.9, 0.35, a)
+        s.p.CFrame = cf * CFrame.new(pos) * CFrame.Angles(0, -a, 0) * CFrame.Angles(math.rad(10), 0, 0)
+    end
+end
+DecorUpdaters["Shards"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local a = t * spd * 0.5 + s.a
+        s.p.CFrame = cf
+            * CFrame.new(ringPoint(s.r, s.y + math.sin(t * spd * 1.5 + s.i) * 0.25, a))
+            * CFrame.Angles(s.rx, a, s.rz)
+    end
+end
+DecorUpdaters["Smoke"] = function(segs, cf, t, spd)
+    segs[1].p.CFrame = cf * CFrame.new(0, -0.6, 0)
+end
+DecorUpdaters["Cards"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local a = t * spd * 0.8 + (s.i - 1) * (2 * math.pi / #segs)
+        s.p.CFrame = cf * CFrame.new(ringPoint(1.9, 0.2 + math.sin(t * spd + s.i) * 0.3, a))
+            * CFrame.Angles(0, -a + math.rad(90), math.rad(12) * math.sin(t * 1.3 + s.i))
+    end
+end
+DecorUpdaters["Vortex"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local y = -1.2 + s.j * 0.24
+        local r = 2.2 - s.j * 0.17
+        local base = t * spd * 2.2 + s.arm * (2 * math.pi / 3)
+        local p1 = ringPoint(r, y, base + s.j * 0.5)
+        local nj = s.j + 1
+        local p2 = ringPoint(2.2 - nj * 0.17, -1.2 + nj * 0.24, base + nj * 0.5)
+        s.p.Size = Vector3.new((p2 - p1).Magnitude * 1.04, 0.09, 0.09)
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+DecorUpdaters["Nebula"] = function(segs, cf, t, spd)
+    segs[1].p.CFrame = cf * CFrame.new(0, 0.3, 0)
+end
+DecorUpdaters["Phantom"] = function(segs, cf, t, spd)
+    segs[1].p.CFrame = cf * CFrame.new(0, 0.2, 0)
+    dynRing(segs.w1, cf, t, spd * 2.5, 1.5, 0.4, CFrame.Angles(math.rad(12), 0, 0))
+    dynRing(segs.w2, cf, t, -spd * 2, 1.2, -0.6, CFrame.Angles(math.rad(-10), 0, 0))
+end
+DecorUpdaters["Gyro"] = function(segs, cf, t, spd)
+    local RS = { { math.rad(90), 1.0, 2.0, 1.9 }, { 0, math.rad(90), -1.3, 1.5 }, { 0, 0, 1.7, 1.1 } }
+    for _, s in ipairs(segs) do
+        local cfg = RS[s.ring]
+        local step = 2 * math.pi / s.n
+        local frame = CFrame.Angles(cfg[1], t * spd * cfg[3], cfg[2])
+        local a1 = (s.i - 1) * step
+        local p1 = (frame * CFrame.new(ringPoint(cfg[4], 0, a1))).Position
+        local p2 = (frame * CFrame.new(ringPoint(cfg[4], 0, a1 + step))).Position
+        s.p.CFrame = cf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+    end
+end
+DecorUpdaters["Comet"] = function(segs, cf, t, spd)
+    local a = t * spd * 2.5
+    local head = ringPoint(2.2, 0.5, a)
+    segs.head.CFrame = cf * CFrame.new(head) * CFrame.Angles(0, -a, math.rad(20))
+    segs.head.Transparency = 0.05
+    local prev = head
+    for j, s in ipairs(segs.tail) do
+        local aj = a - j * 0.1
+        local pj = ringPoint(2.2, 0.5 + j * j * 0.014, aj)
+        s.p.Size = Vector3.new((pj - prev).Magnitude * 1.04, 0.1 - j * 0.006, 0.1 - j * 0.006)
+        s.p.Transparency = 0.05 + j * 0.1
+        s.p.CFrame = cf * CFrame.lookAt((pj + prev) / 2, pj) * CFrame.Angles(0, math.rad(90), 0)
+        prev = pj
+    end
+end
+DecorUpdaters["Swords"] = function(segs, cf, t, spd)
+    for _, s in ipairs(segs) do
+        local a = t * spd * 1.6 + (s.i - 1) * (math.pi / 2)
+        local pos = ringPoint(1.8, 0.3, a)
+        local U = Vector3.new(math.cos(a), 0, math.sin(a))
+        s.p.CFrame = cf * CFrame.lookAt(pos, pos + U) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(0, 0, math.rad(90))
+    end
+end
+
+local function buildDecorFor(plr)
+    clearDecor(plr)
+    local mode = Config.Decor
+    if mode == "None" then return end
+    local col = decorColor(tick())
+    local list = {}
+    if mode == "Ghost" then
+        local orb = newPart(Enum.PartType.Ball, Vector3.new(1.6, 1.6, 1.6), col, Enum.Material.Glass, 0.6)
+        local pe = Instance.new("ParticleEmitter")
+        pe.Color = ColorSequence.new(col)
+        pe.Rate = 5; pe.Lifetime = NumberRange.new(0.8, 1.4)
+        pe.Speed = NumberRange.new(0.2, 0.5)
+        pe.Size = NumberSequence.new(0.4)
+        pe.Transparency = NumberSequence.new(0.55)
+        pe.LightEmission = 0.8
+        pe.Parent = orb
+        list[1] = { p = orb }
+    elseif mode == "Brackets" then
+        for i = 1, 4 do
+            for arm = 1, 2 do
+                list[#list + 1] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.57, 0.09, 0.09), col, Enum.Material.Neon, 0.08), i = i, arm = arm }
+            end
+        end
+    elseif mode == "Diamonds" then
+        for i = 1, 3 do
+            list[i] = { p = newPart(Enum.PartType.Block, Vector3.new(0.55, 0.55, 0.55), col, Enum.Material.Neon, 0.08), h = ({ 0.15, 0.6, 1.05 })[i] }
+        end
+    elseif mode == "Ring" then
+        for i = 1, 40 do
+            list[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.35, 0.1, 0.1), col, Enum.Material.Neon, 0.08), i = i, th = 0.1 }
+        end
+    elseif mode == "Helix" then
+        local P, H = 16, 2.2
+        local step, dy = (2 * math.pi) / (P - 1), H / (P - 1)
+        for _, off in ipairs({ 0, math.pi }) do
+            for j = 1, P - 1 do
+                list[#list + 1] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.3, 0.09, 0.09), col, Enum.Material.Neon, 0.08), j = j, off = off, dy = dy, step = step }
+            end
+        end
+    elseif mode == "Tornado" then
+        local spec = { { n = 12, r = 0.95, y = -0.9 }, { n = 18, r = 1.5, y = -0.05 }, { n = 24, r = 2.05, y = 0.8 } }
+        for ring, sp in ipairs(spec) do
+            for i = 1, sp.n do
+                list[#list + 1] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.25, 0.11, 0.11), col, Enum.Material.Neon, 0.08), ring = ring, i = i, n = sp.n }
+            end
+        end
+    elseif mode == "Wings" or mode == "Admin Wings" then
+        local admin = (mode == "Admin Wings")
+        local col2 = admin and ADMINRED or col
+        local sizes = admin and { { 2.9, 1.25 }, { 2.5, 1.1 }, { 2.1, 0.92 }, { 1.6, 0.7 } } or { { 1.8, 0.78 }, { 1.55, 0.68 }, { 1.3, 0.56 }, { 1.0, 0.42 } }
+        for _, side in ipairs({ -1, 1 }) do
+            for i, wh in ipairs(sizes) do
+                list[#list + 1] = {
+                    p = newPart(Enum.PartType.Block, Vector3.new(wh[1], wh[2], 0.07), col2, admin and Enum.Material.Glass or Enum.Material.Neon, admin and 0.35 or 0.08),
+                    side = side, i = i,
+                }
+            end
+        end
+    elseif mode == "Shield" then
+        list[1] = { p = newPart(Enum.PartType.Ball, Vector3.new(6.6, 6.6, 6.6), col, Enum.Material.Glass, 0.5) }
+        local ring = {}
+        for i = 1, 40 do
+            ring[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.55, 0.1, 0.1), col, Enum.Material.Neon, 0.08), i = i, th = 0.1 }
+        end
+        list.ring = ring
+    elseif mode == "Pulse" then
+        for i = 1, 3 do
+            list[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.1, 2, 2), col, Enum.Material.Neon, 0.3) }
+        end
+    elseif mode == "Nova" then
+        local h, v = {}, {}
+        for i = 1, 28 do
+            h[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.5, 0.1, 0.1), col, Enum.Material.Neon, 0.2), i = i, th = 0.1 }
+            v[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.5, 0.1, 0.1), col, Enum.Material.Neon, 0.2), i = i, th = 0.1 }
+        end
+        list.h = h; list.v = v
+        list.core = newPart(Enum.PartType.Cylinder, Vector3.new(0.12, 1.2, 1.2), col, Enum.Material.Neon, 0.2)
+    elseif mode == "Flame" then
+        local base = newPart(Enum.PartType.Ball, Vector3.new(0.4, 0.4, 0.4), col, Enum.Material.Neon, 1)
+        local fire = Instance.new("Fire")
+        fire.Color = Color3.fromRGB(255, 120, 200)
+        fire.SecondaryColor = Color3.fromRGB(255, 200, 240)
+        fire.Size = 6; fire.Heat = 12
+        fire.Parent = base
+        list[1] = { p = base }
+    elseif mode == "Cubes" then
+        for i = 1, 3 do
+            list[i] = { p = newPart(Enum.PartType.Block, Vector3.new(0.5, 0.5, 0.5), col, Enum.Material.Neon, 0.08) }
+        end
+    elseif mode == "Star" then
+        local spec = { { n = 16, r = 1.4 }, { n = 22, r = 2.0 }, { n = 28, r = 2.6 } }
+        for ring, sp in ipairs(spec) do
+            for i = 1, sp.n do
+                list[#list + 1] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.28, 0.09, 0.09), col, Enum.Material.Neon, 0.06), ring = ring, i = i, n = sp.n }
+            end
+        end
+    elseif mode == "Blades" then
+        for i = 1, 3 do
+            list[i] = { p = newPart(Enum.PartType.Block, Vector3.new(2.8, 0.08, 0.6), col, Enum.Material.Neon, 0.18), i = i }
+        end
+    elseif mode == "Shards" then
+        local rng = Random.new(11)
+        for i = 1, 7 do
+            local h = 1.6 + rng:NextNumber(0, 1.1)
+            local c = ({ PINKGLOW, ROSE, ADMINRED })[(i % 3) + 1]
+            list[i] = {
+                p = newPart(Enum.PartType.Block, Vector3.new(0.5, h, 0.5), c, Enum.Material.Glass, 0.42),
+                a = (i - 1) * (2 * math.pi / 7), r = 2.2 + (i % 3) * 0.4, y = -0.6 + (i % 4) * 0.55,
+                rx = math.rad(45), rz = math.rad(45), i = i,
+            }
+        end
+    elseif mode == "Smoke" then
+        local anchor = newPart(Enum.PartType.Block, Vector3.new(0.2, 0.2, 0.2), col, Enum.Material.SmoothPlastic, 1)
+        local pe = Instance.new("ParticleEmitter")
+        pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        pe.Color = ColorSequence.new(Color3.fromRGB(240, 240, 245))
+        pe.Rate = 14; pe.Lifetime = NumberRange.new(1.5, 2.6)
+        pe.Speed = NumberRange.new(0.6, 1.2)
+        pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.8), NumberSequenceKeypoint.new(1, 3.8) })
+        pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.72), NumberSequenceKeypoint.new(1, 1) })
+        pe.Rotation = NumberRange.new(-180, 180)
+        pe.RotSpeed = NumberRange.new(-25, 25)
+        pe.Acceleration = Vector3.new(0, 1.5, 0)
+        pe.Parent = anchor
+        list[1] = { p = anchor }
+    elseif mode == "Cards" then
+        for i = 1, 5 do
+            list[i] = { p = newPart(Enum.PartType.Block, Vector3.new(1.1, 1.5, 0.06), col, Enum.Material.Glass, 0.38), i = i }
+        end
+    elseif mode == "Vortex" then
+        for arm = 0, 2 do
+            for j = 1, 9 do
+                list[#list + 1] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.3, 0.09, 0.09), col, Enum.Material.Neon, 0.08), arm = arm, j = j }
+            end
+        end
+    elseif mode == "Nebula" then
+        local anchor = newPart(Enum.PartType.Block, Vector3.new(0.2, 0.2, 0.2), col, Enum.Material.SmoothPlastic, 1)
+        local pe = Instance.new("ParticleEmitter")
+        pe.Texture = "rbxasset://textures/particles/smoke_main.dds"
+        pe.Color = ColorSequence.new(PINKGLOW, Color3.fromRGB(140, 60, 220))
+        pe.Rate = 20; pe.Lifetime = NumberRange.new(1.2, 2.2)
+        pe.Speed = NumberRange.new(0.4, 1.0)
+        pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2.2), NumberSequenceKeypoint.new(1, 4.5) })
+        pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1) })
+        pe.RotSpeed = NumberRange.new(-18, 18)
+        pe.LightEmission = 0.6
+        pe.Parent = anchor
+        list[1] = { p = anchor }
+    elseif mode == "Phantom" then
+        list[1] = { p = newPart(Enum.PartType.Block, Vector3.new(2.4, 5.2, 1.4), Color3.fromRGB(120, 90, 200), Enum.Material.Glass, 0.82) }
+        local w1, w2 = {}, {}
+        for i = 1, 24 do
+            w1[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.4, 0.08, 0.08), col, Enum.Material.Neon, 0.1), i = i, th = 0.08 }
+            w2[i] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.4, 0.08, 0.08), col, Enum.Material.Neon, 0.1), i = i, th = 0.08 }
+        end
+        list.w1 = w1; list.w2 = w2
+    elseif mode == "Gyro" then
+        local spec = { { n = 24 }, { n = 20 }, { n = 16 } }
+        for ring, sp in ipairs(spec) do
+            for i = 1, sp.n do
+                list[#list + 1] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.32, 0.1, 0.1), col, Enum.Material.Neon, 0.08), ring = ring, i = i, n = sp.n }
+            end
+        end
+    elseif mode == "Comet" then
+        local tail = {}
+        for j = 1, 9 do
+            tail[j] = { p = newPart(Enum.PartType.Cylinder, Vector3.new(0.3, 0.1, 0.1), col, Enum.Material.Neon, 0.2) }
+        end
+        list.head = newPart(Enum.PartType.Block, Vector3.new(0.45, 0.45, 0.45), col, Enum.Material.Neon, 0.05)
+        list.tail = tail
+    elseif mode == "Swords" then
+        for i = 1, 4 do
+            list[i] = { p = newPart(Enum.PartType.Block, Vector3.new(0.14, 1.7, 0.3), col, Enum.Material.Neon, 0.1), i = i }
+        end
+    end
+    V.decor[plr] = list
+end
+
+local function setDecor(mode)
+    Config.Decor = mode
+    for plr in pairs(V.decor) do clearDecor(plr) end
+    if mode ~= "None" then
+        for _, plr in ipairs(Players:GetPlayers()) do buildDecorFor(plr) end
+    end
+end
+
+local function recolorDecor()
+    local col = decorColor(tick())
+    for _, d in pairs(V.decor) do
+        for _, s in ipairs(d) do
+            if typeof(s) == "table" and s.p and not s.fixed then s.p.Color = col end
+        end
+        if d.ring then for _, s in ipairs(d.ring) do s.p.Color = col end end
+        if d.h then for _, s in ipairs(d.h) do s.p.Color = col end end
+        if d.v then for _, s in ipairs(d.v) do s.p.Color = col end end
+        if d.w1 then for _, s in ipairs(d.w1) do s.p.Color = col end end
+        if d.w2 then for _, s in ipairs(d.w2) do s.p.Color = col end end
+        if d.tail then for _, s in ipairs(d.tail) do s.p.Color = col end end
+        if d.core then d.core.Color = col end
+        if d.head then d.head.Color = col end
+    end
+end
+
+-- ========================================================= SkinChanger (client-only)
+
+local RARITY_COLOR = {
+    Common    = Color3.fromRGB(180, 180, 180),
+    Uncommon  = Color3.fromRGB(80, 200, 120),
+    Rare      = Color3.fromRGB(80, 150, 255),
+    Legendary = Color3.fromRGB(255, 180, 40),
+    Godly     = Color3.fromRGB(255, 60, 80),
+    Ancient   = Color3.fromRGB(180, 80, 255),
+    Vintage   = Color3.fromRGB(200, 160, 100),
+    Unique    = Color3.fromRGB(255, 100, 200),
+    chroma    = Color3.fromRGB(0, 255, 200),
+}
+
+-- curated MM2-style skins (client visual only)
+local SKIN_CATALOG = {
+    { name = "Default",        rarity = "Common",    color = Color3.fromRGB(200, 200, 200), mat = Enum.Material.SmoothPlastic },
+    { name = "Pink Neon",      rarity = "Rare",      color = Color3.fromRGB(255, 80, 180),  mat = Enum.Material.Neon },
+    { name = "Gold",           rarity = "Legendary", color = Color3.fromRGB(255, 200, 60),  mat = Enum.Material.Metal },
+    { name = "Ice",            rarity = "Rare",      color = Color3.fromRGB(140, 220, 255), mat = Enum.Material.Glass },
+    { name = "Shadow",         rarity = "Godly",     color = Color3.fromRGB(30, 30, 40),    mat = Enum.Material.Metal },
+    { name = "Blood",          rarity = "Godly",     color = Color3.fromRGB(180, 20, 40),   mat = Enum.Material.Neon },
+    { name = "Emerald",        rarity = "Legendary", color = Color3.fromRGB(40, 220, 120),  mat = Enum.Material.Neon },
+    { name = "Amethyst",       rarity = "Legendary", color = Color3.fromRGB(160, 80, 255),  mat = Enum.Material.Neon },
+    { name = "Ruby",           rarity = "Legendary", color = Color3.fromRGB(255, 40, 80),   mat = Enum.Material.Neon },
+    { name = "Sapphire",       rarity = "Legendary", color = Color3.fromRGB(40, 100, 255),  mat = Enum.Material.Neon },
+    { name = "Ghost",          rarity = "Ancient",   color = Color3.fromRGB(220, 230, 255), mat = Enum.Material.ForceField },
+    { name = "Void",           rarity = "Ancient",   color = Color3.fromRGB(20, 0, 40),     mat = Enum.Material.Neon },
+    { name = "Lava",           rarity = "Godly",     color = Color3.fromRGB(255, 90, 20),   mat = Enum.Material.Neon },
+    { name = "Ocean",          rarity = "Rare",      color = Color3.fromRGB(20, 140, 220),  mat = Enum.Material.Glass },
+    { name = "Forest",         rarity = "Uncommon",  color = Color3.fromRGB(40, 140, 60),   mat = Enum.Material.Grass },
+    { name = "Pearl",          rarity = "Rare",      color = Color3.fromRGB(255, 240, 230), mat = Enum.Material.Glass },
+    { name = "Obsidian",       rarity = "Godly",     color = Color3.fromRGB(15, 10, 25),    mat = Enum.Material.Metal },
+    { name = "Rainbow",        rarity = "chroma",    color = Color3.fromRGB(255, 100, 200), mat = Enum.Material.Neon },
+    { name = "Chrome",         rarity = "Legendary", color = Color3.fromRGB(200, 210, 220), mat = Enum.Material.Metal },
+    { name = "Toxic",          rarity = "Rare",      color = Color3.fromRGB(120, 255, 40),  mat = Enum.Material.Neon },
+    { name = "Midnight",       rarity = "Ancient",   color = Color3.fromRGB(10, 15, 50),    mat = Enum.Material.Metal },
+    { name = "Sunrise",        rarity = "Rare",      color = Color3.fromRGB(255, 160, 80),  mat = Enum.Material.Neon },
+    { name = "Galaxy",         rarity = "Ancient",   color = Color3.fromRGB(80, 40, 160),   mat = Enum.Material.Neon },
+    { name = "Cookie",         rarity = "Uncommon",  color = Color3.fromRGB(200, 150, 90),  mat = Enum.Material.SmoothPlastic },
+    { name = "Candy",          rarity = "Uncommon",  color = Color3.fromRGB(255, 120, 180), mat = Enum.Material.SmoothPlastic },
+    { name = "Elite",          rarity = "Godly",     color = Color3.fromRGB(255, 215, 0),   mat = Enum.Material.Neon },
+    { name = "Vampire",        rarity = "Godly",     color = Color3.fromRGB(100, 0, 20),    mat = Enum.Material.Metal },
+    { name = "Frostbite",      rarity = "Legendary", color = Color3.fromRGB(180, 240, 255), mat = Enum.Material.Ice },
+    { name = "Nebula",         rarity = "Ancient",   color = Color3.fromRGB(200, 80, 255),  mat = Enum.Material.Neon },
+    { name = "Phantom",        rarity = "Vintage",   color = Color3.fromRGB(160, 170, 190), mat = Enum.Material.ForceField },
+    { name = "Dragon",         rarity = "Ancient",   color = Color3.fromRGB(220, 40, 40),   mat = Enum.Material.Neon },
+    { name = "Cyber",          rarity = "Legendary", color = Color3.fromRGB(0, 255, 200),   mat = Enum.Material.Neon },
+    { name = "Hologram",       rarity = "Unique",    color = Color3.fromRGB(100, 255, 255), mat = Enum.Material.ForceField },
+    { name = "Copper",         rarity = "Common",    color = Color3.fromRGB(180, 110, 60),  mat = Enum.Material.Metal },
+    { name = "Silver",         rarity = "Common",    color = Color3.fromRGB(190, 195, 200), mat = Enum.Material.Metal },
+    { name = "Bronze",         rarity = "Common",    color = Color3.fromRGB(160, 100, 50),  mat = Enum.Material.Metal },
+}
+
+local SkinFilter = { query = "", rarity = "All" }
+local SkinSelected = "Pink Neon"
+
+local function applySkin()
+    local c = character(); if not c then return end
+    local skin = nil
+    for _, s in ipairs(SKIN_CATALOG) do
+        if s.name == SkinSelected then skin = s; break end
+    end
+    if not skin then
+        for _, s in ipairs(SKIN_CATALOG) do
+            if s.name == Config.SkinMode then skin = s; break end
+        end
+    end
+    if not skin then return end
+    for _, tool in ipairs(c:GetChildren()) do
+        if tool:IsA("Tool") then
+            local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+            if handle then
+                if not V.original[handle] then
+                    V.original[handle] = { color = handle.Color, material = handle.Material }
+                end
+                handle.Color = skin.color
+                handle.Material = skin.mat
+            end
+        end
+    end
+end
+
+local function restoreSkin()
+    for handle, o in pairs(V.original) do
+        pcall(function()
+            handle.Color = o.color; handle.Material = o.material
+        end)
+    end
+    V.original = {}
+end
+
+local function rebuildSkinGrid(container)
+    for _, ch in ipairs(container:GetChildren()) do
+        if ch:IsA("TextButton") then ch:Destroy() end
+    end
+    local q = string.lower(SkinFilter.query or "")
+    local r = SkinFilter.rarity or "All"
+    for _, s in ipairs(SKIN_CATALOG) do
+        local matchName = q == "" or string.find(string.lower(s.name), q, 1, true)
+        local matchRar = r == "All" or s.rarity == r
+        if matchName and matchRar then
+            local card = mk("TextButton", {
+                Size = UDim2.fromOffset(70, 78),
+                BackgroundColor3 = Color3.fromRGB(18, 14, 28),
+                BackgroundTransparency = 0.15,
+                BorderSizePixel = 0, Text = "", AutoButtonColor = false,
+            }, container)
+            mk("UICorner", { CornerRadius = UDim.new(0, 8) }, card)
+            local rc = RARITY_COLOR[s.rarity] or WHITE
+            mk("UIStroke", {
+                Color = (SkinSelected == s.name) and Theme.Accent or rc,
+                Thickness = (SkinSelected == s.name) and 1.6 or 1,
+                Transparency = (SkinSelected == s.name) and 0.1 or 0.45,
+            }, card)
+            -- color preview icon
+            local prev = mk("Frame", {
+                Size = UDim2.fromOffset(28, 28),
+                AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8),
+                BackgroundColor3 = s.color, BorderSizePixel = 0,
+            }, card)
+            mk("UICorner", { CornerRadius = UDim.new(0, 6) }, prev)
+            mk("UIStroke", { Color = rc, Thickness = 1.2, Transparency = 0.2 }, prev)
+            mk("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -4, 0, 14), Position = UDim2.new(0, 2, 1, -30),
+                Text = s.name, TextColor3 = WHITE, Font = F_BODY, TextSize = 9,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Center,
+            }, card)
+            mk("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -4, 0, 12), Position = UDim2.new(0, 2, 1, -16),
+                Text = s.rarity, TextColor3 = rc, Font = F_BODY, TextSize = 8,
+                TextXAlignment = Enum.TextXAlignment.Center,
+            }, card)
+            card.MouseButton1Click:Connect(function()
+                SkinSelected = s.name
+                Config.SkinMode = s.name
+                Config.Skin = true
+                applySkin()
+                rebuildSkinGrid(container)
+            end)
+        end
+    end
+end
+
+-- ========================================================= targeting
+
+local function pickTarget(maxPx)
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local best, bestScore = nil, (maxPx or Config.AimFOV)
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local role = getRole(plr)
+            local pri
+            if Config.Priority == "Sheriff First" then
+                pri = (role == "Sheriff" and 2) or (role == "Murderer" and 1) or 0
+            elseif Config.Priority == "Innocent First" then
+                pri = (role == "Innocent" and 2) or (role == "Sheriff" and 1) or 0
+            elseif Config.Priority == "Nearest" then
+                pri = 1
+            else
+                pri = (role == "Murderer" and 2) or (role == "Sheriff" and 1) or 0
+            end
+            if pri > 0 then
+                local part = plr.Character:FindFirstChild(Config.AimPart == "Torso" and "HumanoidRootPart" or "Head")
+                if part then
+                    local pos, on = Camera:WorldToViewportPoint(part.Position)
+                    if on then
+                        local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude - pri * 150
+                        if d < bestScore then best, bestScore = part, d end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function silentTarget()
+    local mouse = UserInputService:GetMouseLocation()
+    local best, bestD = nil, Config.SilentFOV
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local part = plr.Character:FindFirstChild("Head")
+            if part then
+                local pos, on = Camera:WorldToScreenPoint(part.Position)
+                if on then
+                    local d = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
+                    if d < bestD then best, bestD = part, d end
+                end
+            end
+        end
+    end
+    return best
+end
+
+do
+    pcall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            local m = getnamecallmethod()
+            if Config.Silent
+                and (m == "FindPartOnRay" or m == "FindPartOnRayWithIgnoreList" or m == "FindPartOnRayWithWhitelist")
+                and self == workspace then
+                local c = character()
+                if c and c:FindFirstChild("Gun") then
+                    local tg = silentTarget()
+                    if tg then
+                        local origin = Camera.CFrame.Position
+                        local ray = Ray.new(origin, (tg.Position - origin).Unit * 1000)
+                        if m == "FindPartOnRay" then
+                            return oldNamecall(self, ray)
+                        end
+                        return oldNamecall(self, ray, ...)
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end))
+    end)
+end
+
+-- ========================================================= hitbox expander
+
+local function setHitbox(v)
+    if v then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if not HB_RESTORE[hrp] then HB_RESTORE[hrp] = hrp.Size end
+                hrp.Size = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
+                hrp.CanCollide = false
+            end
+        end
+    else
+        for hrp, s in pairs(HB_RESTORE) do
+            pcall(function() hrp.Size = s end)
+        end
+        table.clear(HB_RESTORE)
+    end
+end
+
+-- ========================================================= ESP engine
+
+local BONES_R15 = {
+    { "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" },
+    { "UpperTorso", "LeftUpperArm" }, { "LeftUpperArm", "LeftLowerArm" }, { "LeftLowerArm", "LeftHand" },
+    { "UpperTorso", "RightUpperArm" }, { "RightUpperArm", "RightLowerArm" }, { "RightLowerArm", "RightHand" },
+    { "LowerTorso", "LeftUpperLeg" }, { "LeftUpperLeg", "LeftLowerLeg" }, { "LeftLowerLeg", "LeftFoot" },
+    { "LowerTorso", "RightUpperLeg" }, { "RightUpperLeg", "RightLowerLeg" }, { "RightLowerLeg", "RightFoot" },
+}
+local BONES_R6 = {
+    { "Head", "Torso" },
+    { "Torso", "Left Arm" }, { "Torso", "Right Arm" },
+    { "Torso", "Left Leg" }, { "Torso", "Right Leg" },
+}
+
+local function setOutline(plr, on, color)
+    local c = plr.Character
+    if not c then return end
+    local hl = V.outlines[plr]
+    if on then
+        if not hl or hl.Parent ~= c then
+            if hl then hl:Destroy() end
+            hl = Instance.new("Highlight")
+            hl.FillTransparency = 1
+            hl.OutlineTransparency = 0
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = c
+            V.outlines[plr] = hl
+        end
+        hl.OutlineColor = color
+    elseif hl then
+        hl:Destroy()
+        V.outlines[plr] = nil
+    end
+end
+
+local function outlinePal()
+    if Config.OutlineColor == "Accent" then return Theme.Accent end
+    if Config.OutlineColor == "Rainbow" then return Color3.fromHSV((tick() % 6) / 6, 0.7, 1) end
+    if ESP_PAL[Config.OutlineColor] then return ESP_PAL[Config.OutlineColor] end
+    return WHITE
+end
+
+local function ensureVisuals(plr)
+    local c = plr.Character; if not c then return end
+    local color = espColor(plr)
+    if Config.ESP and Config.Chams then
+        local hl = V.highlights[plr]
+        if not hl or hl.Parent ~= c then
+            if hl then hl:Destroy() end
+            hl = Instance.new("Highlight")
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = c
+            V.highlights[plr] = hl
+        end
+        hl.FillColor = color
+        hl.OutlineColor = color
+        local mode = Config.ChamsMode
+        if mode == "Fill" then
+            hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
+        elseif mode == "Outline" then
+            hl.FillTransparency = 1; hl.OutlineTransparency = 0
+        elseif mode == "Pulse" then
+            hl.FillTransparency = 0.35 + 0.25 * math.sin(tick() * 4); hl.OutlineTransparency = 0
+        elseif mode == "Wire" then
+            hl.FillTransparency = 0.88; hl.OutlineTransparency = 0.08
+        else
+            hl.FillTransparency = 0.22; hl.OutlineTransparency = 0.35
+        end
+    elseif V.highlights[plr] then
+        V.highlights[plr]:Destroy(); V.highlights[plr] = nil
+    end
+    setOutline(plr, Config.Outline, outlinePal())
+    if Config.ESP and Config.Names then
+        local head = c:FindFirstChild("Head")
+        local bb = V.billboards[plr]
+        if head and (not bb or bb.Parent ~= head) then
+            if bb then bb:Destroy() end
+            bb = Instance.new("BillboardGui")
+            bb.Size = UDim2.new(0, 170, 0, 36); bb.StudsOffset = Vector3.new(0, 2.6, 0)
+            bb.AlwaysOnTop = true
+            local tl = Instance.new("TextLabel")
+            tl.Size = UDim2.new(1, 0, 1, 0); tl.BackgroundTransparency = 1
+            tl.Font = F_BODY; tl.TextSize = 12; tl.TextStrokeTransparency = 0.4
+            tl.Parent = bb
+            bb.Parent = head
+            V.billboards[plr] = bb
+        end
+        if bb then
+            local me = root()
+            local them = c:FindFirstChild("HumanoidRootPart")
+            local dist = (me and them) and math.floor((me.Position - them.Position).Magnitude) or 0
+            local weapon = ""
+            if Config.WeaponESP then
+                if c:FindFirstChild("Knife") then weapon = "  ⚔" end
+                if c:FindFirstChild("Gun") then weapon = "  ✦" end
+            end
+            bb.Enabled = true
+            bb.TextLabel.Text = string.format("%s [%s]%s %dm", plr.Name, getRole(plr), weapon, dist)
+            bb.TextLabel.TextColor3 = color
+        end
+    elseif V.billboards[plr] then
+        V.billboards[plr]:Destroy(); V.billboards[plr] = nil
+    end
+    if Config.ESP and Config.Tracers and typeof(Drawing) == "table" then
+        local hrp = c:FindFirstChild("HumanoidRootPart")
+        local line = V.tracers[plr]
+        if hrp then
+            local pos, on = Camera:WorldToViewportPoint(hrp.Position)
+            if not line then
+                line = Drawing.new("Line"); line.Thickness = 1
+                V.tracers[plr] = line
+            end
+            line.Visible = on
+            if on then
+                line.Color = color
+                line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                line.To = Vector2.new(pos.X, pos.Y)
+            end
+        elseif line then
+            line.Visible = false
+        end
+    elseif V.tracers[plr] then
+        pcall(function() V.tracers[plr]:Remove() end)
+        V.tracers[plr] = nil
+    end
+    if Config.ESP and Config.Skeleton and typeof(Drawing) == "table" then
+        local bones = c:FindFirstChild("UpperTorso") and BONES_R15 or BONES_R6
+        local pool = V.skel[plr]
+        if not pool then
+            pool = {}
+            V.skel[plr] = pool
+        end
+        for i = 1, #bones do
+            local p1 = c:FindFirstChild(bones[i][1])
+            local p2 = c:FindFirstChild(bones[i][2])
+            local line = pool[i]
+            if not line then
+                line = Drawing.new("Line"); line.Thickness = 1
+                pool[i] = line
+            end
+            if p1 and p2 then
+                local a, on1 = Camera:WorldToViewportPoint(p1.Position)
+                local b2, on2 = Camera:WorldToViewportPoint(p2.Position)
+                line.Visible = (on1 and on2)
+                if line.Visible then
+                    line.From = Vector2.new(a.X, a.Y)
+                    line.To = Vector2.new(b2.X, b2.Y)
+                    line.Color = color
+                end
+            else
+                line.Visible = false
+            end
+        end
+        for i = #bones + 1, #pool do pool[i].Visible = false end
+    elseif V.skel[plr] then
+        for _, l in ipairs(V.skel[plr]) do pcall(function() l:Remove() end) end
+        V.skel[plr] = nil
+    end
+    if Config.ESP and Config.Boxes and typeof(Drawing) == "table" then
+        local head = c:FindFirstChild("Head")
+        local hrp = c:FindFirstChild("HumanoidRootPart")
+        if head and hrp then
+            local top, on1 = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.8, 0))
+            local bot, on2 = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 2.8, 0))
+            if on1 and on2 then
+                local hpx = math.abs(bot.Y - top.Y)
+                local w = hpx * 0.62
+                local x = (top.X + bot.X) / 2 - w / 2
+                local y = math.min(top.Y, bot.Y)
+                if Config.BoxStyle == "Full" then
+                    local sq = V.boxes[plr]
+                    if not sq then
+                        sq = Drawing.new("Square"); sq.Thickness = 1; sq.Filled = false
+                        V.boxes[plr] = sq
+                    end
+                    sq.Size = Vector2.new(w, hpx)
+                    sq.Position = Vector2.new(x, y)
+                    sq.Color = color
+                    sq.Visible = true
+                else
+                    local lines = V.corners[plr]
+                    if not lines then
+                        lines = {}
+                        for i = 1, 8 do
+                            lines[i] = Drawing.new("Line")
+                            lines[i].Thickness = 1
+                        end
+                        V.corners[plr] = lines
+                    end
+                    local L = math.min(w, hpx) * 0.28
+                    local specs = {
+                        { Vector2.new(x, y), Vector2.new(x + L, y) }, { Vector2.new(x, y), Vector2.new(x, y + L) },
+                        { Vector2.new(x + w, y), Vector2.new(x + w - L, y) }, { Vector2.new(x + w, y), Vector2.new(x + w, y + L) },
+                        { Vector2.new(x, y + hpx), Vector2.new(x + L, y + hpx) }, { Vector2.new(x, y + hpx), Vector2.new(x, y + hpx - L) },
+                        { Vector2.new(x + w, y + hpx), Vector2.new(x + w - L, y + hpx) }, { Vector2.new(x + w, y + hpx), Vector2.new(x + w, y + hpx - L) },
+                    }
+                    for i, s in ipairs(specs) do
+                        lines[i].From = s[1]; lines[i].To = s[2]
+                        lines[i].Color = color
+                        lines[i].Visible = true
+                    end
+                end
+            else
+                if V.boxes[plr] then V.boxes[plr].Visible = false end
+                if V.corners[plr] then for _, l in ipairs(V.corners[plr]) do l.Visible = false end end
+            end
+        else
+            if V.boxes[plr] then V.boxes[plr].Visible = false end
+            if V.corners[plr] then for _, l in ipairs(V.corners[plr]) do l.Visible = false end end
+        end
+    else
+        if V.boxes[plr] then
+            pcall(function() V.boxes[plr]:Remove() end)
+            V.boxes[plr] = nil
+        end
+        if V.corners[plr] then
+            for _, l in ipairs(V.corners[plr]) do pcall(function() l:Remove() end) end
+            V.corners[plr] = nil
+        end
+    end
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+    if V.highlights[plr] then V.highlights[plr]:Destroy() end
+    if V.outlines[plr] then V.outlines[plr]:Destroy() end
+    if V.billboards[plr] then V.billboards[plr]:Destroy() end
+    if V.tracers[plr] then pcall(function() V.tracers[plr]:Remove() end) end
+    if V.boxes[plr] then pcall(function() V.boxes[plr]:Remove() end) end
+    if V.skel[plr] then
+        for _, l in ipairs(V.skel[plr]) do pcall(function() l:Remove() end) end
+        V.skel[plr] = nil
+    end
+    if V.corners[plr] then
+        for _, l in ipairs(V.corners[plr]) do pcall(function() l:Remove() end) end
+        V.corners[plr] = nil
+    end
+    clearDecor(plr)
+    if V.bodyGlow[plr] then V.bodyGlow[plr]:Destroy(); V.bodyGlow[plr] = nil end
+    if V.frameEsp[plr] then
+        for _, l in ipairs(V.frameEsp[plr]) do pcall(function() l:Remove() end) end
+        V.frameEsp[plr] = nil
+    end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    if Config.Decor ~= "None" then task.defer(buildDecorFor, plr) end
+end)
+
+-- ========================================================= overlays
+
+local D = { fov = nil, cross = {} }
+local function drawOverlay()
+    if typeof(Drawing) ~= "table" then return end
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    if Config.FovCircle then
+        if not D.fov then
+            D.fov = Drawing.new("Circle")
+            D.fov.Thickness = 1; D.fov.NumSides = 64; D.fov.Filled = false
+        end
+        D.fov.Visible = true
+        D.fov.Position = center
+        D.fov.Radius = Config.FovCircleSize
+        D.fov.Color = Theme.Accent
+    elseif D.fov then
+        D.fov.Visible = false
+    end
+    if Config.Crosshair then
+        local gap, len = 5, 8
+        local specs = {
+            { center + Vector2.new(0, -gap - len / 2), Vector2.new(1, len) },
+            { center + Vector2.new(0, gap + len / 2),  Vector2.new(1, len) },
+            { center + Vector2.new(-gap - len / 2, 0), Vector2.new(len, 1) },
+            { center + Vector2.new(gap + len / 2, 0),  Vector2.new(len, 1) },
+        }
+        for i, s in ipairs(specs) do
+            if not D.cross[i] then
+                D.cross[i] = Drawing.new("Square")
+                D.cross[i].Filled = true
+                D.cross[i].Thickness = 1
+            end
+            D.cross[i].Size = s[2]
+            D.cross[i].Position = s[1] - s[2] / 2
+            D.cross[i].Color = Theme.Accent
+            D.cross[i].Visible = true
+        end
+    else
+        for _, l in ipairs(D.cross) do l.Visible = false end
+    end
+end
+
+-- ========================================================= screen action buttons
+
+local floatBtns = {}
+local function makeFloatBtn(text, idx, cb)
+    local b = mk("TextButton", {
+        AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16 - (idx - 1) * 108, 1, -16),
+        Size = UDim2.fromOffset(96, 46),
+        BackgroundColor3 = GLASS, BackgroundTransparency = 0.3,
+        Text = text, TextColor3 = WHITE, Font = F_TITLE, TextSize = 12,
+        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 90,
+    }, gui)
+    mk("UICorner", { CornerRadius = UDim.new(0, 12) }, b)
+    glassStroke(b, 1.3, 0.35)
+    glassGradient(b)
+    local sc = mk("UIScale", { Scale = Config.ButtonSize / 100 }, b)
+    b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), { BackgroundTransparency = 0.1 }):Play() end)
+    b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), { BackgroundTransparency = 0.3 }):Play() end)
+    b.MouseButton1Click:Connect(cb)
+    do
+        local dragging, dragStart, startPos
+        b.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                dragging = true; dragStart = i.Position; startPos = b.Position
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+                local d = i.Position - dragStart
+                b.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+        end)
+    end
+    floatBtns[#floatBtns + 1] = { btn = b, scale = sc }
+    return b
+end
+
+local function fireGunAt(part)
+    local c = character()
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local gun = (c and c:FindFirstChild("Gun")) or (bp and bp:FindFirstChild("Gun"))
+    if not gun or not part then return end
+    local h = humanoid()
+    if h and not c:FindFirstChild("Gun") then
+        pcall(function() h:EquipTool(gun) end)
+    end
+    local hr = root()
+    if hr then
+        hr.CFrame = CFrame.lookAt(hr.Position, Vector3.new(part.Position.X, hr.Position.Y, part.Position.Z))
+    end
+    task.defer(function() pcall(function() gun:Activate() end) end)
+end
+
+makeFloatBtn("SHOOT", 1, function()
+    fireGunAt(pickTarget(9999))
+end)
+makeFloatBtn("STAB", 2, function()
+    local c = character()
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local knife = (c and c:FindFirstChild("Knife")) or (bp and bp:FindFirstChild("Knife"))
+    local h = humanoid()
+    if knife and h and not c:FindFirstChild("Knife") then
+        pcall(function() h:EquipTool(knife) end)
+        task.defer(function() pcall(function() knife:Activate() end) end)
+    elseif knife then
+        pcall(function() knife:Activate() end)
+    end
+end)
+makeFloatBtn("SHOOT MUR", 3, function()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and getRole(plr) == "Murderer" and plr.Character then
+            local head = plr.Character:FindFirstChild("Head")
+            if head then
+                fireGunAt(head)
+                return
+            end
+        end
+    end
+end)
+
+-- ========================================================= tabs
+
+local pCombat   = makeTab("Combat", "sword", 1)
+local pVisual   = makeTab("Visuals", "eye2", 2)
+local pMisc     = makeTab("Misc", "vsliders", 3)
+local pPlayer   = makeTab("Player", "person", 4)
+local pSkins    = makeTab("Skins", "palette", 5)
+local pSettings = makeTab("Settings", "gear2", 6)
+switchTab("Combat", true)
+
+-- SKINS tab — client-only SkinChanger
+do
+    -- remove grid from skins page, use custom layout
+    for _, ch in ipairs(pSkins:GetChildren()) do
+        if ch:IsA("UIGridLayout") then ch:Destroy() end
+    end
+    local skinLay = mk("UIListLayout", {
+        Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder,
+    }, pSkins)
+
+    -- search box
+    local searchBox = mk("TextBox", {
+        Size = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3 = Color3.fromRGB(18, 14, 28),
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        Text = "", PlaceholderText = "Search skin...",
+        PlaceholderColor3 = Color3.fromRGB(120, 115, 140),
+        TextColor3 = WHITE, Font = F_BODY, TextSize = 12,
+        ClearTextOnFocus = false,
+        LayoutOrder = 1,
+    }, pSkins)
+    mk("UICorner", { CornerRadius = UDim.new(0, 8) }, searchBox)
+    mk("UIStroke", { Color = Color3.fromRGB(60, 45, 100), Thickness = 1, Transparency = 0.5 }, searchBox)
+    mk("UIPadding", { PaddingLeft = UDim.new(0, 10) }, searchBox)
+
+    -- rarity filter row
+    local rarRow = mk("Frame", {
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundTransparency = 1, LayoutOrder = 2,
+    }, pSkins)
+    mk("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        Padding = UDim.new(0, 4),
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+    }, rarRow)
+    local rarities = { "All", "Common", "Uncommon", "Rare", "Legendary", "Godly", "Ancient", "Vintage", "Unique", "chroma" }
+    local rarBtns = {}
+    for i, rar in ipairs(rarities) do
+        local b = mk("TextButton", {
+            Size = UDim2.fromOffset(i == 1 and 36 or 58, 24),
+            BackgroundColor3 = Color3.fromRGB(22, 18, 34),
+            BackgroundTransparency = 0.2,
+            BorderSizePixel = 0, Text = rar, TextColor3 = WHITE,
+            Font = F_BODY, TextSize = 9, AutoButtonColor = false,
+        }, rarRow)
+        mk("UICorner", { CornerRadius = UDim.new(0, 6) }, b)
+        rarBtns[rar] = b
+        b.MouseButton1Click:Connect(function()
+            SkinFilter.rarity = rar
+            for rn, rb in pairs(rarBtns) do
+                rb.BackgroundColor3 = (rn == rar) and Theme.Accent or Color3.fromRGB(22, 18, 34)
+            end
+            rebuildSkinGrid(skinGrid)
+        end)
+    end
+    rarBtns["All"].BackgroundColor3 = Theme.Accent
+
+    -- skin grid container
+    local skinGrid = mk("Frame", {
+        Size = UDim2.new(1, 0, 0, 400),
+        BackgroundTransparency = 1, LayoutOrder = 3,
+    }, pSkins)
+    mk("UIGridLayout", {
+        CellSize = UDim2.fromOffset(72, 80),
+        CellPadding = UDim2.fromOffset(6, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+    }, skinGrid)
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        SkinFilter.query = searchBox.Text
+        rebuildSkinGrid(skinGrid)
+    end)
+
+    makeToggle(pSkins, "Enable SkinChanger", "palette", false, function(v)
+        Config.Skin = v
+        if v then applySkin() else restoreSkin() end
+    end)
+
+    rebuildSkinGrid(skinGrid)
+end
+
+-- COMBAT
+makeToggle(pCombat, "Aim", "crosshair", false, function(v) Config.Aim = v end)
+makeSlider(pCombat, "Aim FOV", "circle", 50, 1000, 200, function(v) Config.AimFOV = v end)
+makeSlider(pCombat, "Aim Smooth", "sliders", 1, 20, 4, function(v) Config.AimSmooth = v / 20 end)
+makeDropdown(pCombat, "Priority", "list", { "Nearest", "Sheriff First", "Innocent First", "Threats" }, function(o) Config.Priority = o end)
+makeDropdown(pCombat, "Aim Part", "user", { "Head", "Torso" }, function(o) Config.AimPart = o end)
+makeToggle(pCombat, "Silent Aim", "target", false, function(v) Config.Silent = v end)
+makeSlider(pCombat, "Silent FOV", "circle", 30, 800, 250, function(v) Config.SilentFOV = v end)
+makeToggle(pCombat, "Bullet (Gun Auto-Fire)", "tool", false, function(v) Config.Bullet = v end)
+makeToggle(pCombat, "Triggerbot", "zap", false, function(v) Config.Triggerbot = v end)
+makeToggle(pCombat, "Knife Aura", "tool", false, function(v) Config.KnifeAura = v end)
+makeToggle(pCombat, "Hitbox Expander", "expand", false, function(v)
+    Config.Hitbox = v
+    setHitbox(v)
+end)
+makeSlider(pCombat, "Hitbox Size", "expand", 5, 30, 10, function(v) Config.HitboxSize = v end)
+makeToggle(pCombat, "Anti-Aim", "circle", false, function(v) Config.AntiAim = v end)
+makeSlider(pCombat, "Anti-Aim Speed", "sliders", 5, 80, 20, function(v) Config.AntiAimSpeed = v end)
+makeDropdown(pCombat, "TP Target", "user", function()
+    local t = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(t, p.Name) end
+    end
+    return t
+end, function(o) Config.TPTarget = o end)
+makeToggle(pCombat, "ShowDance Teleport", "tp", false, function(v)
+    Config.TP = v
+    if v then playDance() end
+end)
+
+-- VISUALS
+makeToggle(pVisual, "ESP", "eye", false, function(v) Config.ESP = v end)
+makeDropdown(pVisual, "ESP Color", "palette", { "Role", "Accent", "Hot Pink", "Rose", "Magenta", "White", "Rainbow" }, function(o) Config.ESPColor = o end)
+makeToggle(pVisual, "Chams", "layers", true, function(v) Config.Chams = v end)
+makeDropdown(pVisual, "Chams Mode", "layers", { "Fill", "Outline", "Pulse", "Wire", "Glow" }, function(o) Config.ChamsMode = o end)
+makeToggle(pVisual, "Player Outlines", "circle", false, function(v) Config.Outline = v end)
+makeDropdown(pVisual, "Outline Color", "palette", { "White", "Accent", "Hot Pink", "Rose", "Role", "Rainbow" }, function(o) Config.OutlineColor = o end)
+makeToggle(pVisual, "Names + Distance", "list", true, function(v) Config.Names = v end)
+makeToggle(pVisual, "Weapon ESP", "tool", true, function(v) Config.WeaponESP = v end)
+makeToggle(pVisual, "Skeleton ESP", "list", false, function(v) Config.Skeleton = v end)
+makeToggle(pVisual, "Tracers", "tp", false, function(v) Config.Tracers = v end)
+makeToggle(pVisual, "Box ESP", "box", false, function(v) Config.Boxes = v end)
+makeDropdown(pVisual, "Box Style", "box", { "Full", "Corners" }, function(o) Config.BoxStyle = o end)
+makeToggle(pVisual, "FOV Circle", "circle", false, function(v) Config.FovCircle = v end)
+makeSlider(pVisual, "Circle Size", "sliders", 50, 600, 200, function(v) Config.FovCircleSize = v end)
+makeToggle(pVisual, "Crosshair", "crosshair", false, function(v) Config.Crosshair = v end)
+makeToggle(pVisual, "Reticle (Aura)", "sparkle", false, function(v)
+    Config.Aura = v
+    if v then buildAura() else clearAura() end
+end)
+makeToggle(pVisual, "Pink Hat", "cone", false, function(v)
+    Config.PinkHat = v
+    if v then buildHat() else clearHats() end
+end)
+makeDropdown(pVisual, "Hat Style", "cone",
+    { "Halo", "Horns", "TopHat", "Ball", "Cube", "Triangle", "Cage", "Sensei", "Witch", "Crown",
+      "Tang Crown", "Qing Official", "Lotus Crown", "Dragon Horns", "Jade Pagoda", "Phoenix Crest", "Opera Mask", "Cloud Cap" },
+    function(o)
+        Config.HatStyle = o
+        if Config.PinkHat then buildHat() end
+    end)
+makeToggle(pVisual, "Jump Trail", "circle", false, function(v) Config.JumpTrail = v end)
+makeDropdown(pVisual, "Sky", "cloud",
+    { "Default", "Galaxy", "Space", "Rain", "Acid Rain", "Snow" },
+    function(o)
+        Config.SkyMode = o
+        applySky(o)
+    end)
+makeToggle(pVisual, "Fullbright", "sun", false, function(v)
+    Config.Fullbright = v
+    applyFullbright(v)
+end)
+makeToggle(pVisual, "No Fog", "wind", false, function(v)
+    Config.NoFog = v
+    applyNoFog(v)
+end)
+makeDropdown(pVisual, "Player Decor", "sparkle",
+    { "None", "Ghost", "Brackets", "Diamonds", "Ring", "Helix", "Tornado", "Wings", "Admin Wings",
+      "Shield", "Pulse", "Nova", "Flame", "Cubes", "Star", "Blades", "Shards", "Smoke",
+      "Cards", "Vortex", "Nebula", "Phantom", "Gyro", "Comet", "Swords" },
+    function(o) setDecor(o) end)
+makeDropdown(pVisual, "Decor Color", "palette", { "Pink", "Cyan", "Gold", "White", "Rainbow" }, function(o)
+    Config.DecorColor = o
+    recolorDecor()
+end)
+makeSlider(pVisual, "Decor Speed", "sliders", 1, 10, 3, function(v) Config.DecorSpeed = v end)
+
+-- Minecraft / Pulse / Aura style
+makeToggle(pVisual, "Hit Particles", "star", false, function(v) Config.HitParticles = v end)
+makeDropdown(pVisual, "Hit Particle Style", "star", { "Stars", "Crit", "Cubes" }, function(o) Config.HitParticleStyle = o end)
+makeToggle(pVisual, "Damage Numbers", "list", false, function(v) Config.DamageNumbers = v end)
+makeToggle(pVisual, "Body Glow", "sparkle", false, function(v) Config.BodyGlow = v end)
+makeDropdown(pVisual, "Body Glow Color", "palette", { "Pink", "Cyan", "Gold", "White", "Green", "Purple", "Rainbow" }, function(o) Config.BodyGlowColor = o end)
+makeToggle(pVisual, "Frame ESP", "box", false, function(v) Config.FrameESP = v end)
+makeToggle(pVisual, "Orbit Cubes", "box", false, function(v) Config.Cubes = v end)
+makeSlider(pVisual, "Cubes Distance", "sliders", 3, 15, 8, function(v) Config.CubesDist = v end)
+makeToggle(pVisual, "World Particles", "star", false, function(v) Config.WorldParticles = v end)
+makeToggle(pVisual, "Target ESP (Rings)", "target", false, function(v)
+    Config.TargetESP = v
+    if not v and V.targetRings then
+        for _, segs in ipairs(V.targetRings) do
+            for _, p in ipairs(segs) do pcall(function() p:Destroy() end) end
+        end
+        V.targetRings = nil
+    end
+end)
+makeToggle(pVisual, "Low HP Overlay", "flame", false, function(v) Config.LowHP = v end)
+
+-- MISC
+makeToggle(pMisc, "Fly", "wind", false, function(v)
+    Config.Fly = v
+    local h = humanoid()
+    if h and not v then h:ChangeState(Enum.HumanoidStateType.Freefall) end
+end)
+makeSlider(pMisc, "Fly Speed", "sliders", 10, 200, 60, function(v) Config.FlySpeed = v end)
+makeToggle(pMisc, "Spinning", "circle", false, function(v) Config.Spin = v end)
+makeSlider(pMisc, "Spin Speed", "sliders", 1, 50, 20, function(v) Config.SpinSpeed = v end)
+-- SkinChanger moved to Skins tab
+makeToggle(pMisc, "Screen Buttons", "target", true, function(v)
+    Config.Buttons = v
+    for _, b in ipairs(floatBtns) do b.btn.Visible = v end
+end)
+makeSlider(pMisc, "Buttons Size", "sliders", 60, 160, 100, function(v)
+    Config.ButtonSize = v
+    for _, b in ipairs(floatBtns) do b.scale.Scale = v / 100 end
+end)
+
+-- PLAYER
+makeToggle(pPlayer, "WalkSpeed", "wind", false, function(v) Config.Walk = v end)
+makeSlider(pPlayer, "Speed Value", "sliders", 16, 300, 32, function(v) Config.WalkSpeed = v end)
+makeToggle(pPlayer, "JumpPower", "zap", false, function(v) Config.Jump = v end)
+makeSlider(pPlayer, "Jump Value", "sliders", 50, 400, 120, function(v) Config.JumpPower = v end)
+makeToggle(pPlayer, "Infinite Jump", "zap", false, function(v) Config.InfJump = v end)
+makeToggle(pPlayer, "Noclip", "ghost", false, function(v) Config.Noclip = v end)
+makeToggle(pPlayer, "Click TP (left click)", "tp", false, function(v) Config.ClickTP = v end)
+makeToggle(pPlayer, "Hand Animation", "person", false, function(v) Config.HandAnim = v end)
+makeSlider(pPlayer, "Anim Speed", "sliders", 1, 12, 4, function(v) Config.HandAnimSpeed = v end)
+
+-- SETTINGS
+local ACCENTS = {
+    { "Pink",     PINK },
+    { "Hot Pink", HOTPINK },
+    { "Rose",     ROSE },
+    { "Magenta",  MAGENTA },
+    { "Purple",   Color3.fromRGB(170, 80, 255) },
+    { "Red",      Color3.fromRGB(255, 70, 70) },
+    { "Blue",     Color3.fromRGB(80, 140, 255) },
+    { "Cyan",     Color3.fromRGB(70, 220, 230) },
+    { "Green",    Color3.fromRGB(90, 230, 120) },
+    { "Gold",     Color3.fromRGB(255, 200, 90) },
+    { "White",    Color3.fromRGB(240, 240, 240) },
+}
+local accentNames = {}
+for _, a in ipairs(ACCENTS) do accentNames[#accentNames + 1] = a[1] end
+makeDropdown(pSettings, "Accent Color", "palette", accentNames, function(o)
+    for _, a in ipairs(ACCENTS) do
+        if a[1] == o then
+            Theme.Rainbow = false
+            Theme.Accent = a[2]
+            ApplyTheme()
+            break
+        end
+    end
+end)
+makeToggle(pSettings, "Rainbow Accent", "sparkle", false, function(v)
+    Theme.Rainbow = v
+    if not v then
+        Theme.Accent = PINK
+        ApplyTheme()
+    end
+end)
+makeSlider(pSettings, "Menu Transparency", "sliders", 0, 60, 28, function(v)
+    Root.BackgroundTransparency = v / 100
+end)
+
+task.spawn(function()
+    while gui.Parent do
+        if Theme.Rainbow then
+            Theme.Accent = Color3.fromHSV((tick() % 6) / 6, 0.65, 1)
+            ApplyTheme()
+        end
+        task.wait(0.08)
+    end
+end)
+
+-- ========================================================= input hooks
+
+local guiHover = false
+Root.MouseEnter:Connect(function() guiHover = true end)
+Root.MouseLeave:Connect(function() guiHover = false end)
+
+Mouse.Button1Down:Connect(function()
+    if Config.ClickTP and not guiHover and Mouse.Target then
+        local r = root()
+        if r then r.CFrame = CFrame.new(Mouse.Hit.Position + Vector3.new(0, 4, 0)) end
+    end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if Config.InfJump then
+        local h = humanoid()
+        if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(i, gp)
+    if gp then return end
+    if i.KeyCode == Enum.KeyCode.RightShift then toggleMenu() end
+end)
+
+do
+    local dragging, dragStart, startPos
+    Root.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = i.Position; startPos = Panel.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - dragStart
+            Panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+do
+    local minimized = false
+    Min.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        Strip.Visible = not minimized
+        Body.Visible = not minimized
+        UserBar.Visible = not minimized
+        TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = minimized and UDim2.fromOffset(520, 40) or UDim2.fromOffset(520, 380),
+        }):Play()
+    end)
+end
+
+LocalPlayer.CharacterAdded:Connect(function(c)
+    task.wait(0.6)
+    clearHats()
+    clearAura()
+    if Config.PinkHat then buildHat() end
+    if Config.Aura then buildAura() end
+    if Config.Skin and Config.SkinMode ~= "Rainbow" then applySkin() end
+    if Config.Decor ~= "None" then buildDecorFor(LocalPlayer) end
+    -- reset orbit cubes / world particles so they reattach after respawn
+    for _, c2 in ipairs(V.cubes) do pcall(function() c2.p:Destroy() end) end
+    V.cubes = {}
+    for _, p in ipairs(V.worldParts) do pcall(function() p.p:Destroy() end) end
+    V.worldParts = {}
+    bindTrail()
+    c.ChildAdded:Connect(function(ch)
+        if Config.Skin and ch:IsA("Tool") then
+            task.defer(function()
+                if Config.SkinMode ~= "Rainbow" then applySkin() end
+            end)
+        end
+    end)
+end)
+
+do
+    Panel.GroupTransparency = 1
+    Panel.Position = UDim2.fromOffset(200, 136)
+    task.delay(0.1, function()
+        TweenService:Create(Panel, TweenInfo.new(0.32, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            { GroupTransparency = 0, Position = UDim2.fromOffset(200, 120) }):Play()
+    end)
+    menuOpen = true
+end
+
+bindTrail()
+
+-- ========================================================= main loop
+
+local lastAtk = 0
+RunService.RenderStepped:Connect(function(dt)
+    V.spin = (V.spin + dt) % (math.pi * 2)
+    local t = tick()
+
+    local r, h = root(), humanoid()
+    if r and not Config.AntiAim then
+        local _, y, _ = r.CFrame:ToOrientation()
+        V.stableYaw = y
+    end
+
+    local c = character()
+    local head = c and c:FindFirstChild("Head")
+    if head and #V.hats > 0 then
+        local anchorH = CFrame.new(head.Position) * CFrame.Angles(0, V.stableYaw, 0)
+        for i = #V.hats, 1, -1 do
+            local d = V.hats[i]
+            if not d.p or not d.p.Parent then
+                table.remove(V.hats, i)
+            else
+                pcall(function()
+                    if d.idx then
+                        local a1 = V.spin * (d.spinSpeed or 1.2) + d.idx * d.step
+                        local p1 = ringPoint(d.r, d.y, a1)
+                        local p2 = ringPoint(d.r, d.y, a1 + d.step)
+                        d.p.CFrame = anchorH * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+                    else
+                        d.p.CFrame = anchorH * d.rel
+                    end
+                end)
+            end
+        end
+    elseif Config.PinkHat and head and #V.hats == 0 then
+        -- auto-rebuild if hat was wiped
+        buildHat()
+    end
+
+    if r and #V.aura > 0 then
+        local bcf = CFrame.new(r.Position)
+        for i = #V.aura, 1, -1 do
+            local d = V.aura[i]
+            if not d.p or not d.p.Parent then
+                table.remove(V.aura, i)
+            else
+                pcall(function()
+                    if d.idx then
+                        local a1 = t * 2.0 + d.idx * d.step
+                        local p1 = ringPoint(1.7, 0, a1)
+                        local p2 = ringPoint(1.7, 0, a1 + d.step)
+                        d.p.CFrame = bcf * CFrame.lookAt((p1 + p2) / 2, p2) * CFrame.Angles(0, math.rad(90), 0)
+                    else
+                        d.p.CFrame = bcf * d.rel
+                    end
+                end)
+            end
+        end
+    elseif Config.Aura and r and #V.aura == 0 then
+        buildAura()
+    end
+
+    setOutline(LocalPlayer, Config.Outline, outlinePal())
+    updateTrails(t)
+    updateHitFx(t)
+    updateBodyGlow()
+    updateFrameESP()
+    updateCubes(t)
+    updateWorldParticles(t)
+    updateTargetESP(t)
+    updateLowHP()
+
+    if V.stars then
+        local cp = Camera.CFrame.Position
+        for i = #V.stars, 1, -1 do
+            local s = V.stars[i]
+            if not s.p or not s.p.Parent then
+                table.remove(V.stars, i)
+            else
+                pcall(function()
+                    s.p.CFrame = CFrame.new(cp + s.off) * (s.rot or CFrame.identity)
+                    if s.tw then
+                        s.p.Transparency = 0.12 + 0.28 * (0.5 + 0.5 * math.sin(t * 1.6 + s.ph))
+                    end
+                end)
+            end
+        end
+    end
+    if #V.clouds > 0 then
+        local cp = Camera.CFrame.Position
+        for i = #V.clouds, 1, -1 do
+            local s = V.clouds[i]
+            if not s.p or not s.p.Parent then
+                table.remove(V.clouds, i)
+            else
+                pcall(function()
+                    s.p.CFrame = CFrame.new(
+                        cp.X + math.cos(t * s.spd + s.ang) * s.rad,
+                        cp.Y + s.y,
+                        cp.Z + math.sin(t * s.spd + s.ang) * s.rad)
+                end)
+            end
+        end
+    end
+    if V.rain and V.rain.plate and V.rain.plate.Parent then
+        V.rain.plate.CFrame = CFrame.new(Camera.CFrame.Position + Vector3.new(0, 45, 0))
+    end
+
+    if Config.Decor ~= "None" and DecorUpdaters[Config.Decor] then
+        if Config.DecorColor == "Rainbow" then recolorDecor() end
+        for plr, list in pairs(V.decor) do
+            local pc = plr.Character
+            local prp = pc and pc:FindFirstChild("HumanoidRootPart")
+            if prp and list and #list > 0 then
+                pcall(function()
+                    DecorUpdaters[Config.Decor](list, anchorFor(plr, prp), t, Config.DecorSpeed)
+                end)
+            end
+        end
+    end
+
+    if Config.Aim then
+        local tg = pickTarget()
+        if tg then
+            local goal = CFrame.lookAt(Camera.CFrame.Position, tg.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(goal, Config.AimSmooth)
+        end
+    end
+
+    if Config.Bullet and r then
+        local gun = character() and character():FindFirstChild("Gun")
+        local tg = pickTarget()
+        if gun and tg then
+            r.CFrame = CFrame.lookAt(r.Position, Vector3.new(tg.Position.X, r.Position.Y, tg.Position.Z))
+            pcall(function() gun:Activate() end)
+        end
+    end
+
+    if Config.Triggerbot and tick() - lastAtk > 0.25 then
+        local gun = character() and character():FindFirstChild("Gun")
+        if gun and pickTarget(70) then
+            pcall(function() gun:Activate() end)
+            lastAtk = tick()
+        end
+    end
+
+    if Config.KnifeAura and r and tick() - lastAtk > 0.4 then
+        local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+        local knife = (c and c:FindFirstChild("Knife")) or (bp and bp:FindFirstChild("Knife"))
+        if knife and h then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character then
+                    local hrp2 = plr.Character:FindFirstChild("HumanoidRootPart")
+                    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                    if hrp2 and hum and hum.Health > 0 and (hrp2.Position - r.Position).Magnitude < 7 then
+                        if not c:FindFirstChild("Knife") then
+                            pcall(function() h:EquipTool(knife) end)
+                        end
+                        task.defer(function() pcall(function() knife:Activate() end) end)
+                        lastAtk = tick()
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    if Config.Hitbox then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                if not HB_RESTORE[hrp] then HB_RESTORE[hrp] = hrp.Size end
+                hrp.Size = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
+                hrp.CanCollide = false
+            end
+        end
+    end
+
+    if r then
+        if Config.AntiAim then
+            if h then h.AutoRotate = false end
+            V.aaYaw = (V.aaYaw + dt * Config.AntiAimSpeed * 0.6) % (math.pi * 2)
+            r.CFrame = CFrame.new(r.Position)
+                * CFrame.Angles(0, V.aaYaw, 0)
+                * CFrame.Angles(math.sin(V.spin * 3) * 0.13, 0, 0)
+        elseif h and h.AutoRotate == false then
+            h.AutoRotate = true
+        end
+    end
+
+    if Config.Spin and r then
+        r.CFrame = r.CFrame * CFrame.Angles(math.rad(Config.SpinSpeed * 30 * dt), math.rad(Config.SpinSpeed * 45 * dt), 0)
+    end
+
+    if Config.Fly and r and h then
+        if h:GetState() ~= Enum.HumanoidStateType.Physics then
+            h:ChangeState(Enum.HumanoidStateType.Physics)
+        end
+        local dir = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= Camera.CFrame.RightVector end
+        local vy = 0
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vy = 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vy = -1 end
+        local v = dir + Vector3.new(0, vy, 0)
+        r.AssemblyLinearVelocity = v.Magnitude > 0 and v.Unit * Config.FlySpeed or Vector3.zero
+    end
+
+    if Config.TP and r then
+        local tg = Config.TPTarget and Players:FindFirstChild(Config.TPTarget)
+        local tc = tg and tg.Character
+        local thrp = tc and tc:FindFirstChild("HumanoidRootPart")
+        if thrp then
+            local behind = thrp.CFrame * CFrame.new(0, 0, 3)
+            if (r.Position - thrp.Position).Magnitude > 8 then
+                r.CFrame = CFrame.lookAt(behind.Position, Vector3.new(thrp.Position.X, behind.Position.Y, thrp.Position.Z))
+                playDance()
+            end
+        end
+    end
+
+    if h then
+        if Config.Walk then h.WalkSpeed = Config.WalkSpeed elseif h.WalkSpeed ~= 16 then h.WalkSpeed = 16 end
+        if Config.Jump then h.JumpPower = Config.JumpPower elseif h.JumpPower ~= 50 then h.JumpPower = 50 end
+    end
+
+    if Config.Noclip and character() then
+        for _, p in ipairs(character():GetDescendants()) do
+            if p:IsA("BasePart") then p.CanCollide = false end
+        end
+    end
+
+    if Config.Skin and Config.SkinMode == "Rainbow" and character() then
+        local hue = (tick() % 5) / 5
+        for _, tool in ipairs(character():GetChildren()) do
+            if tool:IsA("Tool") then
+                local handle = tool:FindFirstChild("Handle")
+                if handle then
+                    handle.Color = Color3.fromHSV(hue, 1, 1)
+                    handle.Material = Enum.Material.Neon
+                end
+            end
+        end
+    end
+
+    -- hand animation (client-side arm cycle)
+    if Config.HandAnim and c then
+        local spd = Config.HandAnimSpeed or 4
+        local wave = math.sin(t * spd)
+        local wave2 = math.sin(t * spd * 1.3)
+        -- R15
+        local rua = c:FindFirstChild("RightUpperArm")
+        local rla = c:FindFirstChild("RightLowerArm")
+        local rh = c:FindFirstChild("RightHand")
+        if rua then
+            local m = rua:FindFirstChildOfClass("Motor6D") or (c:FindFirstChild("LowerTorso") and c.LowerTorso:FindFirstChild("RightShoulder"))
+            -- use Transform on Motor6D if available
+            for _, partName in ipairs({ "RightUpperArm", "RightLowerArm", "RightHand" }) do
+                local part = c:FindFirstChild(partName)
+                if part then
+                    local motor = nil
+                    for _, d in ipairs(c:GetDescendants()) do
+                        if d:IsA("Motor6D") and d.Part1 == part then motor = d; break end
+                    end
+                    if motor then
+                        if partName == "RightUpperArm" then
+                            motor.Transform = CFrame.Angles(math.rad(-40 + wave * 25), math.rad(-20), math.rad(30 + wave2 * 15))
+                        elseif partName == "RightLowerArm" then
+                            motor.Transform = CFrame.Angles(math.rad(-70 + wave * 40), 0, 0)
+                        else
+                            motor.Transform = CFrame.Angles(math.rad(wave * 20), 0, 0)
+                        end
+                    end
+                end
+            end
+        else
+            -- R6
+            local ra = c:FindFirstChild("Right Arm")
+            if ra then
+                local motor = nil
+                for _, d in ipairs(c:GetDescendants()) do
+                    if d:IsA("Motor6D") and d.Part1 == ra then motor = d; break end
+                end
+                if motor then
+                    motor.Transform = CFrame.Angles(math.rad(-50 + wave * 35), math.rad(-15), math.rad(25))
+                end
+            end
+        end
+    end
+
+    drawOverlay()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then ensureVisuals(plr) end
+    end
+end)
