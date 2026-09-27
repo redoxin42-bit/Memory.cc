@@ -229,101 +229,104 @@ mk("UIListLayout", {
     HorizontalAlignment = Enum.HorizontalAlignment.Right,
 }, NotifStack)
 
-local function notify(title, body, duration, colorName)
+-- status: "ok" = green, "err" = red, or pass color name
+local function notify(title, body, duration, status)
     if Config and Config.NotifEnabled == false then return end
-    duration = duration or (Config and Config.NotifDuration) or 4
-    local col = NOTIF_COLORS[colorName or (Config and Config.NotifColor) or "Purple"] or Theme.Accent
+    duration = duration or (Config and Config.NotifDuration) or 3.5
+    local col
+    if status == "ok" or status == "Green" then
+        col = Color3.fromRGB(70, 210, 120)
+    elseif status == "err" or status == "Red" then
+        col = Color3.fromRGB(240, 70, 80)
+    else
+        col = NOTIF_COLORS[status or (Config and Config.NotifColor) or "Purple"] or Theme.Accent
+    end
 
     local card = mk("Frame", {
-        Size = UDim2.fromOffset(290, 0),
+        Size = UDim2.fromOffset(270, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundColor3 = Color3.fromRGB(12, 10, 18),
-        BackgroundTransparency = 0.08,
+        BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+        BackgroundTransparency = 0.45,
         BorderSizePixel = 0, ZIndex = 201,
         ClipsDescendants = true,
     }, NotifStack)
-    mk("UICorner", { CornerRadius = UDim.new(0, 12) }, card)
-    mk("UIStroke", { Color = col, Thickness = 1.3, Transparency = 0.25 }, card)
+    mk("UICorner", { CornerRadius = UDim.new(0, 8) }, card)
+    mk("UIStroke", { Color = col, Thickness = 0.8, Transparency = 0.55 }, card)
 
-    -- accent bar left
     mk("Frame", {
-        Size = UDim2.new(0, 3, 1, 0),
-        BackgroundColor3 = col, BorderSizePixel = 0, ZIndex = 202,
+        Size = UDim2.new(0, 2, 1, 0),
+        BackgroundColor3 = col, BackgroundTransparency = 0.15,
+        BorderSizePixel = 0, ZIndex = 202,
     }, card)
 
     local content = mk("Frame", {
-        Size = UDim2.new(1, -20, 0, 0),
+        Size = UDim2.new(1, -18, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Position = UDim2.fromOffset(14, 10),
+        Position = UDim2.fromOffset(12, 8),
         BackgroundTransparency = 1, ZIndex = 202,
     }, card)
     mk("TextLabel", {
-        BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 18),
+        BackgroundTransparency = 1, Size = UDim2.new(1, -22, 0, 15),
         Text = title or "memory.cc", TextColor3 = col,
-        Font = F_HEAD, TextSize = 13,
+        Font = F_HEAD, TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 203,
     }, content)
     if body and body ~= "" then
         mk("TextLabel", {
-            BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 0),
+            BackgroundTransparency = 1, Size = UDim2.new(1, -22, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
-            Position = UDim2.fromOffset(0, 20),
-            Text = body, TextColor3 = WHITE,
-            Font = F_BODY, TextSize = 12,
+            Position = UDim2.fromOffset(0, 16),
+            Text = body, TextColor3 = Color3.fromRGB(210, 210, 215),
+            Font = F_BODY, TextSize = 11,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true, ZIndex = 203,
         }, content)
     end
 
-    -- close button
     local close = mk("TextButton", {
-        Size = UDim2.fromOffset(20, 20),
-        Position = UDim2.new(1, -28, 0, 8),
+        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(1, -22, 0, 6),
         BackgroundTransparency = 1,
-        Text = "×", TextColor3 = Color3.fromRGB(180, 180, 190),
-        Font = F_HEAD, TextSize = 16, ZIndex = 204, AutoButtonColor = false,
+        Text = "×", TextColor3 = Color3.fromRGB(140, 140, 150),
+        Font = F_HEAD, TextSize = 13, ZIndex = 204, AutoButtonColor = false,
     }, card)
 
-    -- progress bar
     local barBg = mk("Frame", {
-        Size = UDim2.new(1, -16, 0, 3),
-        Position = UDim2.new(0, 8, 1, -8),
-        BackgroundColor3 = Color3.fromRGB(30, 25, 45),
+        Size = UDim2.new(1, -12, 0, 2),
+        Position = UDim2.new(0, 6, 1, -5),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 24),
+        BackgroundTransparency = 0.3,
         BorderSizePixel = 0, ZIndex = 202,
     }, card)
     mk("UICorner", { CornerRadius = UDim.new(1, 0) }, barBg)
     local bar = mk("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = col, BorderSizePixel = 0, ZIndex = 203,
+        BackgroundColor3 = col, BackgroundTransparency = 0.2,
+        BorderSizePixel = 0, ZIndex = 203,
     }, barBg)
     mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
-
-    -- spacer for progress
-    mk("Frame", { Size = UDim2.new(1, 0, 0, 14), BackgroundTransparency = 1 }, content)
+    mk("Frame", { Size = UDim2.new(1, 0, 0, 10), BackgroundTransparency = 1 }, content)
 
     card.BackgroundTransparency = 1
-    TweenService:Create(card, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0.08,
+    TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.45,
     }):Play()
 
     local dismissed = false
     local function dismiss()
         if dismissed then return end
         dismissed = true
-        local tw = TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            BackgroundTransparency = 1,
-        })
-        tw:Play()
+        TweenService:Create(card, TweenInfo.new(0.18), { BackgroundTransparency = 1 }):Play()
         for _, d in ipairs(card:GetDescendants()) do
             if d:IsA("TextLabel") or d:IsA("TextButton") then
-                TweenService:Create(d, TweenInfo.new(0.2), { TextTransparency = 1 }):Play()
+                TweenService:Create(d, TweenInfo.new(0.15), { TextTransparency = 1 }):Play()
             elseif d:IsA("Frame") and d ~= card then
-                TweenService:Create(d, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+                TweenService:Create(d, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
             elseif d:IsA("UIStroke") then
-                TweenService:Create(d, TweenInfo.new(0.2), { Transparency = 1 }):Play()
+                TweenService:Create(d, TweenInfo.new(0.15), { Transparency = 1 }):Play()
             end
         end
-        task.delay(0.25, function()
+        task.delay(0.2, function()
             if card and card.Parent then card:Destroy() end
         end)
     end
@@ -338,6 +341,9 @@ local function notify(title, body, duration, colorName)
     task.delay(duration, dismiss)
     return dismiss
 end
+
+local function notifyOk(title, body, dur) return notify(title, body, dur, "ok") end
+local function notifyErr(title, body, dur) return notify(title, body, dur, "err") end
 
 local function buildLogo(parent, size, pos)
     local box = mk("Frame", {
@@ -2297,48 +2303,61 @@ local RARITY_COLOR = {
     chroma    = Color3.fromRGB(0, 255, 200),
 }
 
--- curated MM2-style skins (client visual only)
+-- Real MM2 skin images from game Database.Sync.Item
+local function mm2Img(id)
+    return "rbxassetid://" .. tostring(id)
+end
+
 local SKIN_CATALOG = {
-    { name = "Default",        rarity = "Common",    color = Color3.fromRGB(200, 200, 200), mat = Enum.Material.SmoothPlastic },
-    { name = "Pink Neon",      rarity = "Rare",      color = Color3.fromRGB(255, 80, 180),  mat = Enum.Material.Neon },
-    { name = "Gold",           rarity = "Legendary", color = Color3.fromRGB(255, 200, 60),  mat = Enum.Material.Metal },
-    { name = "Ice",            rarity = "Rare",      color = Color3.fromRGB(140, 220, 255), mat = Enum.Material.Glass },
-    { name = "Shadow",         rarity = "Godly",     color = Color3.fromRGB(30, 30, 40),    mat = Enum.Material.Metal },
-    { name = "Blood",          rarity = "Godly",     color = Color3.fromRGB(180, 20, 40),   mat = Enum.Material.Neon },
-    { name = "Emerald",        rarity = "Legendary", color = Color3.fromRGB(40, 220, 120),  mat = Enum.Material.Neon },
-    { name = "Amethyst",       rarity = "Legendary", color = Color3.fromRGB(160, 80, 255),  mat = Enum.Material.Neon },
-    { name = "Ruby",           rarity = "Legendary", color = Color3.fromRGB(255, 40, 80),   mat = Enum.Material.Neon },
-    { name = "Sapphire",       rarity = "Legendary", color = Color3.fromRGB(40, 100, 255),  mat = Enum.Material.Neon },
-    { name = "Ghost",          rarity = "Ancient",   color = Color3.fromRGB(220, 230, 255), mat = Enum.Material.ForceField },
-    { name = "Void",           rarity = "Ancient",   color = Color3.fromRGB(20, 0, 40),     mat = Enum.Material.Neon },
-    { name = "Lava",           rarity = "Godly",     color = Color3.fromRGB(255, 90, 20),   mat = Enum.Material.Neon },
-    { name = "Ocean",          rarity = "Rare",      color = Color3.fromRGB(20, 140, 220),  mat = Enum.Material.Glass },
-    { name = "Forest",         rarity = "Uncommon",  color = Color3.fromRGB(40, 140, 60),   mat = Enum.Material.Grass },
-    { name = "Pearl",          rarity = "Rare",      color = Color3.fromRGB(255, 240, 230), mat = Enum.Material.Glass },
-    { name = "Obsidian",       rarity = "Godly",     color = Color3.fromRGB(15, 10, 25),    mat = Enum.Material.Metal },
-    { name = "Rainbow",        rarity = "chroma",    color = Color3.fromRGB(255, 100, 200), mat = Enum.Material.Neon },
-    { name = "Chrome",         rarity = "Legendary", color = Color3.fromRGB(200, 210, 220), mat = Enum.Material.Metal },
-    { name = "Toxic",          rarity = "Rare",      color = Color3.fromRGB(120, 255, 40),  mat = Enum.Material.Neon },
-    { name = "Midnight",       rarity = "Ancient",   color = Color3.fromRGB(10, 15, 50),    mat = Enum.Material.Metal },
-    { name = "Sunrise",        rarity = "Rare",      color = Color3.fromRGB(255, 160, 80),  mat = Enum.Material.Neon },
-    { name = "Galaxy",         rarity = "Ancient",   color = Color3.fromRGB(80, 40, 160),   mat = Enum.Material.Neon },
-    { name = "Cookie",         rarity = "Uncommon",  color = Color3.fromRGB(200, 150, 90),  mat = Enum.Material.SmoothPlastic },
-    { name = "Candy",          rarity = "Uncommon",  color = Color3.fromRGB(255, 120, 180), mat = Enum.Material.SmoothPlastic },
-    { name = "Elite",          rarity = "Godly",     color = Color3.fromRGB(255, 215, 0),   mat = Enum.Material.Neon },
-    { name = "Vampire",        rarity = "Godly",     color = Color3.fromRGB(100, 0, 20),    mat = Enum.Material.Metal },
-    { name = "Frostbite",      rarity = "Legendary", color = Color3.fromRGB(180, 240, 255), mat = Enum.Material.Ice },
-    { name = "Nebula",         rarity = "Ancient",   color = Color3.fromRGB(200, 80, 255),  mat = Enum.Material.Neon },
-    { name = "Phantom",        rarity = "Vintage",   color = Color3.fromRGB(160, 170, 190), mat = Enum.Material.ForceField },
-    { name = "Dragon",         rarity = "Ancient",   color = Color3.fromRGB(220, 40, 40),   mat = Enum.Material.Neon },
-    { name = "Cyber",          rarity = "Legendary", color = Color3.fromRGB(0, 255, 200),   mat = Enum.Material.Neon },
-    { name = "Hologram",       rarity = "Unique",    color = Color3.fromRGB(100, 255, 255), mat = Enum.Material.ForceField },
-    { name = "Copper",         rarity = "Common",    color = Color3.fromRGB(180, 110, 60),  mat = Enum.Material.Metal },
-    { name = "Silver",         rarity = "Common",    color = Color3.fromRGB(190, 195, 200), mat = Enum.Material.Metal },
-    { name = "Bronze",         rarity = "Common",    color = Color3.fromRGB(160, 100, 50),  mat = Enum.Material.Metal },
+    { name = "Default Knife", rarity = "Common",    color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(584555920),  tex = 584555920 },
+    { name = "Whiteout",      rarity = "Common",    color = Color3.fromRGB(240,240,245), mat = Enum.Material.SmoothPlastic, img = mm2Img(191788694),  tex = 191788694 },
+    { name = "Ice",           rarity = "Common",    color = Color3.fromRGB(160,220,255), mat = Enum.Material.Glass,          img = mm2Img(191976710),  tex = 191976710 },
+    { name = "Love",          rarity = "Common",    color = Color3.fromRGB(255,120,160), mat = Enum.Material.SmoothPlastic, img = mm2Img(196750845),  tex = 196750845 },
+    { name = "Splatter",      rarity = "Common",    color = Color3.fromRGB(200,80,120),  mat = Enum.Material.SmoothPlastic, img = mm2Img(16964346058),tex = 16964346058 },
+    { name = "Reptile",       rarity = "Common",    color = Color3.fromRGB(80,180,90),   mat = Enum.Material.SmoothPlastic, img = mm2Img(162672131),  tex = 162672131 },
+    { name = "Neon",          rarity = "Common",    color = Color3.fromRGB(80,255,180),  mat = Enum.Material.Neon,           img = mm2Img(159653652),  tex = 159653652 },
+    { name = "Wanwood",       rarity = "Uncommon",  color = Color3.fromRGB(120,90,50),   mat = Enum.Material.Wood,           img = mm2Img(192132094),  tex = 192132094 },
+    { name = "Bluesteel",     rarity = "Uncommon",  color = Color3.fromRGB(80,120,200),  mat = Enum.Material.Metal,          img = mm2Img(159947939),  tex = 159947939 },
+    { name = "Adurite",       rarity = "Uncommon",  color = Color3.fromRGB(160,60,40),   mat = Enum.Material.Metal,          img = mm2Img(192492943),  tex = 192492943 },
+    { name = "Gifted",        rarity = "Uncommon",  color = Color3.fromRGB(255,200,80),  mat = Enum.Material.SmoothPlastic, img = mm2Img(197627734),  tex = 197627734 },
+    { name = "Future",        rarity = "Uncommon",  color = Color3.fromRGB(100,200,255), mat = Enum.Material.Neon,           img = mm2Img(197639041),  tex = 197639041 },
+    { name = "Doge",          rarity = "Uncommon",  color = Color3.fromRGB(220,180,100), mat = Enum.Material.SmoothPlastic, img = mm2Img(159758190),  tex = 159758190 },
+    { name = "Rainbow",       rarity = "Rare",      color = Color3.fromRGB(255,100,200), mat = Enum.Material.Neon,           img = mm2Img(159747377),  tex = 159747377 },
+    { name = "Galaxy",        rarity = "Rare",      color = Color3.fromRGB(80,40,160),   mat = Enum.Material.Neon,           img = mm2Img(192480941),  tex = 192480941 },
+    { name = "Nether",        rarity = "Rare",      color = Color3.fromRGB(180,40,80),   mat = Enum.Material.Neon,           img = mm2Img(197657098),  tex = 197657098 },
+    { name = "Krypto",        rarity = "Rare",      color = Color3.fromRGB(100,220,255), mat = Enum.Material.Neon,           img = mm2Img(155572642),  tex = 155572642 },
+    { name = "Cheesy",        rarity = "Rare",      color = Color3.fromRGB(255,200,60),  mat = Enum.Material.SmoothPlastic, img = mm2Img(161425686),  tex = 161425686 },
+    { name = "Plasmite",      rarity = "Legendary", color = Color3.fromRGB(180,80,255),  mat = Enum.Material.Neon,           img = mm2Img(161369368),  tex = 161369368 },
+    { name = "Midnight",      rarity = "Legendary", color = Color3.fromRGB(20,20,50),    mat = Enum.Material.Metal,          img = mm2Img(197664126),  tex = 197664126 },
+    { name = "Predator",      rarity = "Legendary", color = Color3.fromRGB(40,180,60),   mat = Enum.Material.Neon,           img = mm2Img(199611278),  tex = 199611278 },
+    { name = "Dew",           rarity = "Legendary", color = Color3.fromRGB(80,220,160),  mat = Enum.Material.Glass,          img = mm2Img(192294097),  tex = 192294097 },
+    { name = "LMFAO",         rarity = "Legendary", color = Color3.fromRGB(255,80,160),  mat = Enum.Material.Neon,           img = mm2Img(160971237),  tex = 160971237 },
+    { name = "Deathshard",    rarity = "Godly",     color = Color3.fromRGB(200,220,255), mat = Enum.Material.Neon,           img = mm2Img(3175017717), tex = 3175017717 },
+    { name = "Chroma Deathshard", rarity = "chroma", color = Color3.fromRGB(255,100,200), mat = Enum.Material.Neon,         img = mm2Img(3187397317), tex = 3187397317 },
+    { name = "Blood",         rarity = "Vintage",   color = Color3.fromRGB(160,20,30),   mat = Enum.Material.Metal,          img = mm2Img(144307188),  tex = 144307188 },
+    { name = "Ghost",         rarity = "Vintage",   color = Color3.fromRGB(200,220,255), mat = Enum.Material.ForceField,     img = mm2Img(144268841),  tex = 144268841 },
+    { name = "Splitter",      rarity = "Vintage",   color = Color3.fromRGB(180,180,190), mat = Enum.Material.Metal,          img = mm2Img(143820641),  tex = 143820641 },
+    { name = "Shadow",        rarity = "Vintage",   color = Color3.fromRGB(30,30,40),    mat = Enum.Material.Metal,          img = mm2Img(144070096),  tex = 144070096 },
+    { name = "Prince",        rarity = "Vintage",   color = Color3.fromRGB(220,180,60),  mat = Enum.Material.Metal,          img = mm2Img(143917700),  tex = 143917700 },
+    { name = "Seer",          rarity = "Godly",     color = Color3.fromRGB(100,180,255), mat = Enum.Material.Neon,           img = mm2Img(156467990),  tex = 156467990 },
+    { name = "Fang",          rarity = "Godly",     color = Color3.fromRGB(220,220,230), mat = Enum.Material.Metal,          img = mm2Img(116693735),  tex = 116693735 },
+    { name = "Saw",           rarity = "Godly",     color = Color3.fromRGB(160,160,170), mat = Enum.Material.Metal,          img = mm2Img(170903610),  tex = 170903610 },
+    { name = "Heat",          rarity = "Godly",     color = Color3.fromRGB(255,100,40),  mat = Enum.Material.Neon,           img = mm2Img(105351545),  tex = 105351545 },
+    { name = "Luger",         rarity = "Godly",     color = Color3.fromRGB(200,180,100), mat = Enum.Material.Metal,          img = mm2Img(3187399148), tex = 3187399148 },
+    { name = "Chroma Luger",  rarity = "chroma",    color = Color3.fromRGB(255,100,200), mat = Enum.Material.Neon,           img = mm2Img(3187399258), tex = 3187399258 },
+    { name = "Laser",         rarity = "Vintage",   color = Color3.fromRGB(80,200,255),  mat = Enum.Material.Neon,           img = mm2Img(54798135),   tex = 54798135 },
+    { name = "Phaser",        rarity = "Vintage",   color = Color3.fromRGB(120,80,200),  mat = Enum.Material.Neon,           img = mm2Img(144325423),  tex = 144325423 },
+    { name = "Golden",        rarity = "Vintage",   color = Color3.fromRGB(255,200,60),  mat = Enum.Material.Metal,          img = mm2Img(147835357),  tex = 147835357 },
+    { name = "America",       rarity = "Vintage",   color = Color3.fromRGB(60,100,200),  mat = Enum.Material.SmoothPlastic, img = mm2Img(164676043),  tex = 164676043 },
+    { name = "Elderwood Blade", rarity = "Godly",   color = Color3.fromRGB(80,140,60),   mat = Enum.Material.Wood,           img = mm2Img(11254879631),tex = 11254879631 },
+    { name = "Chroma Elderwood", rarity = "chroma", color = Color3.fromRGB(100,255,150), mat = Enum.Material.Neon,          img = mm2Img(11255021976),tex = 11255021976 },
+    { name = "Zombified",     rarity = "Rare",      color = Color3.fromRGB(100,160,80),  mat = Enum.Material.SmoothPlastic, img = mm2Img(11254182560),tex = 11254182560 },
+    { name = "Cookiecane",    rarity = "Godly",     color = Color3.fromRGB(220,160,100), mat = Enum.Material.SmoothPlastic, img = mm2Img(11979596437),tex = 11979596437 },
+    { name = "Icecrusher",    rarity = "Godly",     color = Color3.fromRGB(160,220,255), mat = Enum.Material.Ice,            img = mm2Img(11855282546),tex = 11855282546 },
 }
 
 local SkinFilter = { query = "", rarity = "All" }
-local SkinSelected = "Pink Neon"
+local SkinSelected = "Default Knife"
 
 local function applySkin()
     local c = character(); if not c then return end
@@ -2357,10 +2376,23 @@ local function applySkin()
             local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
             if handle then
                 if not V.original[handle] then
-                    V.original[handle] = { color = handle.Color, material = handle.Material }
+                    local mesh = handle:FindFirstChildOfClass("SpecialMesh")
+                    V.original[handle] = {
+                        color = handle.Color,
+                        material = handle.Material,
+                        tex = handle:IsA("MeshPart") and handle.TextureID or (mesh and mesh.TextureId) or "",
+                    }
                 end
                 handle.Color = skin.color
                 handle.Material = skin.mat
+                if skin.tex then
+                    local tid = "rbxassetid://" .. tostring(skin.tex)
+                    pcall(function()
+                        if handle:IsA("MeshPart") then handle.TextureID = tid end
+                        local sm = handle:FindFirstChildOfClass("SpecialMesh")
+                        if sm then sm.TextureId = tid end
+                    end)
+                end
             end
         end
     end
@@ -2385,45 +2417,88 @@ local function rebuildSkinGrid(container)
         local matchName = q == "" or string.find(string.lower(s.name), q, 1, true)
         local matchRar = r == "All" or s.rarity == r
         if matchName and matchRar then
+            local selected = (SkinSelected == s.name)
             local card = mk("TextButton", {
-                Size = UDim2.fromOffset(70, 78),
-                BackgroundColor3 = Color3.fromRGB(18, 14, 28),
-                BackgroundTransparency = 0.15,
+                Size = UDim2.fromOffset(96, 110),
+                BackgroundColor3 = Color3.fromRGB(14, 12, 22),
+                BackgroundTransparency = 0.2,
                 BorderSizePixel = 0, Text = "", AutoButtonColor = false,
             }, container)
-            mk("UICorner", { CornerRadius = UDim.new(0, 8) }, card)
+            mk("UICorner", { CornerRadius = UDim.new(0, 10) }, card)
             local rc = RARITY_COLOR[s.rarity] or WHITE
             mk("UIStroke", {
-                Color = (SkinSelected == s.name) and Theme.Accent or rc,
-                Thickness = (SkinSelected == s.name) and 1.6 or 1,
-                Transparency = (SkinSelected == s.name) and 0.1 or 0.45,
+                Color = selected and Theme.Accent or rc,
+                Thickness = selected and 1.8 or 1,
+                Transparency = selected and 0.05 or 0.4,
             }, card)
-            -- color preview icon
+            -- preview plate
             local prev = mk("Frame", {
-                Size = UDim2.fromOffset(28, 28),
+                Size = UDim2.fromOffset(72, 52),
                 AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8),
-                BackgroundColor3 = s.color, BorderSizePixel = 0,
+                BackgroundColor3 = Color3.fromRGB(8, 6, 14),
+                BorderSizePixel = 0,
             }, card)
-            mk("UICorner", { CornerRadius = UDim.new(0, 6) }, prev)
-            mk("UIStroke", { Color = rc, Thickness = 1.2, Transparency = 0.2 }, prev)
+            mk("UICorner", { CornerRadius = UDim.new(0, 8) }, prev)
+            mk("UIStroke", { Color = rc, Thickness = 1, Transparency = 0.35 }, prev)
+            if s.img then
+                mk("ImageLabel", {
+                    Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromOffset(4, 4),
+                    BackgroundTransparency = 1, Image = s.img, ScaleType = Enum.ScaleType.Fit,
+                }, prev)
+            else
+                -- stylized knife/gun silhouette
+                local blade = mk("Frame", {
+                    Size = UDim2.fromOffset(36, 10),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Position = UDim2.new(0.5, 0, 0.45, 0),
+                    BackgroundColor3 = s.color, BorderSizePixel = 0, Rotation = -25,
+                }, prev)
+                mk("UICorner", { CornerRadius = UDim.new(0, 3) }, blade)
+                local tip = mk("Frame", {
+                    Size = UDim2.fromOffset(12, 12),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Position = UDim2.new(0.72, 0, 0.38, 0),
+                    BackgroundColor3 = s.color, BorderSizePixel = 0, Rotation = 45,
+                }, prev)
+                mk("UICorner", { CornerRadius = UDim.new(0, 2) }, tip)
+                local glow = mk("Frame", {
+                    Size = UDim2.fromOffset(40, 40),
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Position = UDim2.new(0.5, 0, 0.5, 0),
+                    BackgroundColor3 = s.color, BackgroundTransparency = 0.85, BorderSizePixel = 0,
+                }, prev)
+                mk("UICorner", { CornerRadius = UDim.new(1, 0) }, glow)
+            end
             mk("TextLabel", {
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, -4, 0, 14), Position = UDim2.new(0, 2, 1, -30),
-                Text = s.name, TextColor3 = WHITE, Font = F_BODY, TextSize = 9,
+                Size = UDim2.new(1, -6, 0, 14), Position = UDim2.new(0, 3, 1, -40),
+                Text = s.name, TextColor3 = WHITE, Font = F_HEAD, TextSize = 10,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 TextXAlignment = Enum.TextXAlignment.Center,
             }, card)
             mk("TextLabel", {
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, -4, 0, 12), Position = UDim2.new(0, 2, 1, -16),
-                Text = s.rarity, TextColor3 = rc, Font = F_BODY, TextSize = 8,
+                Size = UDim2.new(1, -6, 0, 12), Position = UDim2.new(0, 3, 1, -24),
+                Text = s.rarity, TextColor3 = rc, Font = F_BODY, TextSize = 9,
                 TextXAlignment = Enum.TextXAlignment.Center,
             }, card)
+            -- rarity chip
+            local chip = mk("Frame", {
+                Size = UDim2.fromOffset(8, 8),
+                Position = UDim2.new(1, -14, 0, 6),
+                BackgroundColor3 = rc, BorderSizePixel = 0,
+            }, card)
+            mk("UICorner", { CornerRadius = UDim.new(1, 0) }, chip)
             card.MouseButton1Click:Connect(function()
                 SkinSelected = s.name
                 Config.SkinMode = s.name
                 Config.Skin = true
-                applySkin()
+                local ok, err = pcall(applySkin)
+                if ok then
+                    notifyOk("Skin", s.name .. " · " .. s.rarity)
+                else
+                    notifyErr("Skin error", tostring(err))
+                end
                 rebuildSkinGrid(container)
             end)
         end
@@ -2974,7 +3049,7 @@ do
         BackgroundTransparency = 1, LayoutOrder = 3,
     }, pSkins)
     mk("UIGridLayout", {
-        CellSize = UDim2.fromOffset(72, 80),
+        CellSize = UDim2.fromOffset(100, 114),
         CellPadding = UDim2.fromOffset(6, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
         HorizontalAlignment = Enum.HorizontalAlignment.Left,
@@ -3376,17 +3451,19 @@ end
 local function fireBind(act)
     if act.id == "Menu" then
         toggleMenu()
+        notifyOk("Menu", menuOpen and "Opened" or "Closed", 1.5)
         return
     end
     if act.toggle and act.cfg then
         Config[act.cfg] = not Config[act.cfg]
         local v = Config[act.cfg]
-        -- side effects
         if act.cfg == "Skin" then
-            if v then applySkin() else restoreSkin() end
-        elseif act.cfg == "ESP" then
-            -- visuals refresh via ensureVisuals in loop
+            local ok = pcall(function()
+                if v then applySkin() else restoreSkin() end
+            end)
+            if not ok then notifyErr("Skin", "Apply failed") end
         end
+        notify(act.label, v and "Enabled" or "Disabled", 1.8, v and "ok" or "err")
         refreshBindStates()
     end
 end
@@ -3606,7 +3683,7 @@ LocalPlayer.CharacterAdded:Connect(function(c)
     end)
 end)
 
--- ========================================================= MAIN MENU + KEY SYSTEM
+-- ========================================================= MAIN MENU — LiquidGlass Dark Fantasy banner
 Panel.Visible = false
 menuOpen = false
 pcall(function() WM.Visible = false end)
@@ -3616,164 +3693,241 @@ pcall(function() if BindHUD then BindHUD.Visible = false end end)
 
 local MainMenu = mk("Frame", {
     Size = UDim2.new(1, 0, 1, 0),
-    BackgroundColor3 = Color3.fromRGB(6, 4, 12),
+    BackgroundColor3 = Color3.fromRGB(4, 3, 8),
     BackgroundTransparency = 0,
     BorderSizePixel = 0, ZIndex = 300,
 }, gui)
 
--- animated gradient bg
-local bgOrb1 = mk("Frame", {
-    Size = UDim2.fromOffset(420, 420),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.3, 0, 0.4, 0),
-    BackgroundColor3 = Color3.fromRGB(90, 40, 180),
-    BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 301,
+-- Dark Fantasy layered sky
+local sky = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 301,
 }, MainMenu)
-mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bgOrb1)
-local bgOrb2 = mk("Frame", {
-    Size = UDim2.fromOffset(360, 360),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.75, 0, 0.65, 0),
-    BackgroundColor3 = Color3.fromRGB(180, 40, 120),
-    BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 301,
+mk("Frame", {
+    Size = UDim2.new(1, 0, 0.55, 0),
+    BackgroundColor3 = Color3.fromRGB(12, 6, 22), BorderSizePixel = 0, ZIndex = 301,
+}, sky)
+local skyGrad = mk("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 8, 35)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40, 12, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 4, 16)),
+    }),
+    Rotation = 90,
+}, sky:FindFirstChildOfClass("Frame"))
+-- ground / horizon
+local ground = mk("Frame", {
+    Size = UDim2.new(1, 0, 0.5, 0), Position = UDim2.new(0, 0, 0.5, 0),
+    BackgroundColor3 = Color3.fromRGB(10, 8, 14), BorderSizePixel = 0, ZIndex = 302,
 }, MainMenu)
-mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bgOrb2)
+mk("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 12, 30)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(8, 6, 12)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(4, 3, 8)),
+    }),
+    Rotation = 90,
+}, ground)
+
+-- floating dark orbs (liquidglass depth)
+local function mkOrb(sz, col, x, y, tr)
+    local o = mk("Frame", {
+        Size = UDim2.fromOffset(sz, sz),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(x, 0, y, 0),
+        BackgroundColor3 = col,
+        BackgroundTransparency = tr or 0.88,
+        BorderSizePixel = 0, ZIndex = 303,
+    }, MainMenu)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, o)
+    return o
+end
+local orb1 = mkOrb(500, Color3.fromRGB(80, 20, 120), 0.2, 0.3, 0.9)
+local orb2 = mkOrb(380, Color3.fromRGB(140, 30, 60), 0.8, 0.55, 0.91)
+local orb3 = mkOrb(260, Color3.fromRGB(40, 60, 140), 0.55, 0.2, 0.92)
+
+-- mist particles
+local mist = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 304,
+}, MainMenu)
+for i = 1, 18 do
+    local p = mk("Frame", {
+        Size = UDim2.fromOffset(math.random(2, 5), math.random(2, 5)),
+        Position = UDim2.new(math.random(), 0, math.random(), 0),
+        BackgroundColor3 = Color3.fromRGB(180, 140, 220),
+        BackgroundTransparency = 0.7 + math.random() * 0.25,
+        BorderSizePixel = 0, ZIndex = 304,
+    }, mist)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, p)
+end
 
 task.spawn(function()
     local t0 = tick()
     while MainMenu and MainMenu.Parent do
         local t = tick() - t0
-        bgOrb1.Position = UDim2.new(0.3 + math.sin(t * 0.4) * 0.08, 0, 0.4 + math.cos(t * 0.3) * 0.06, 0)
-        bgOrb2.Position = UDim2.new(0.75 + math.cos(t * 0.35) * 0.07, 0, 0.65 + math.sin(t * 0.45) * 0.05, 0)
-        task.wait(0.03)
+        orb1.Position = UDim2.new(0.22 + math.sin(t * 0.25) * 0.06, 0, 0.32 + math.cos(t * 0.2) * 0.04, 0)
+        orb2.Position = UDim2.new(0.78 + math.cos(t * 0.22) * 0.05, 0, 0.58 + math.sin(t * 0.28) * 0.04, 0)
+        orb3.Position = UDim2.new(0.55 + math.sin(t * 0.18) * 0.07, 0, 0.22 + math.cos(t * 0.3) * 0.05, 0)
+        task.wait(0.04)
     end
 end)
 
--- center card
+-- BANNER card (liquidglass)
 local MMCard = mk("Frame", {
-    Size = UDim2.fromOffset(380, 340),
+    Size = UDim2.fromOffset(440, 280),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.new(0.5, 0, 0.5, 0),
-    BackgroundColor3 = Color3.fromRGB(12, 10, 20),
-    BackgroundTransparency = 0.05,
-    BorderSizePixel = 0, ZIndex = 310,
+    BackgroundColor3 = Color3.fromRGB(16, 12, 28),
+    BackgroundTransparency = 0.35,
+    BorderSizePixel = 0, ZIndex = 320,
 }, MainMenu)
-mk("UICorner", { CornerRadius = UDim.new(0, 18) }, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 20) }, MMCard)
 mk("UIStroke", {
-    Color = Color3.fromRGB(120, 80, 200),
-    Thickness = 1.4, Transparency = 0.3,
+    Color = Color3.fromRGB(160, 120, 220),
+    Thickness = 1.2, Transparency = 0.45,
 }, MMCard)
+-- glass sheen
+local sheen = mk("Frame", {
+    Size = UDim2.new(1, 0, 0.4, 0), BackgroundTransparency = 1, ZIndex = 321,
+}, MMCard)
+mk("UIGradient", {
+    Color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.85),
+        NumberSequenceKeypoint.new(0.5, 0.92),
+        NumberSequenceKeypoint.new(1, 1),
+    }),
+    Rotation = 90,
+}, sheen)
+local sheenBg = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BackgroundTransparency = 0.92, BorderSizePixel = 0, ZIndex = 321,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 20) }, sheenBg)
+mk("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.7),
+        NumberSequenceKeypoint.new(0.4, 0.95),
+        NumberSequenceKeypoint.new(1, 1),
+    }),
+    Rotation = 110,
+}, sheenBg)
 
 local MMLogo = mk("Frame", {
-    Size = UDim2.fromOffset(200, 36),
+    Size = UDim2.fromOffset(180, 32),
     AnchorPoint = Vector2.new(0.5, 0),
-    Position = UDim2.new(0.5, 0, 0, 28),
-    BackgroundTransparency = 1, ZIndex = 311,
+    Position = UDim2.new(0.5, 0, 0, 22),
+    BackgroundTransparency = 1, ZIndex = 325,
 }, MMCard)
-buildLogo(MMLogo, 28, UDim2.new(0, 0, 0.5, -14))
+buildLogo(MMLogo, 26, UDim2.new(0, 0, 0.5, -13))
 mk("TextLabel", {
-    BackgroundTransparency = 1, Size = UDim2.new(1, -36, 1, 0), Position = UDim2.fromOffset(36, 0),
-    Text = "memory.cc", TextColor3 = WHITE, Font = F_TITLE, TextSize = 20,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 312,
+    BackgroundTransparency = 1, Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(34, 0),
+    Text = "memory.cc", TextColor3 = WHITE, Font = F_TITLE, TextSize = 18,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 326,
 }, MMLogo)
 
 mk("TextLabel", {
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -40, 0, 18), Position = UDim2.new(0, 20, 0, 72),
-    Text = "Enter license key to continue",
-    TextColor3 = Color3.fromRGB(160, 150, 180), Font = F_BODY, TextSize = 12,
-    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 311,
+    Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 20, 0, 58),
+    Text = "License  ·  Customize  ·  Launch",
+    TextColor3 = Color3.fromRGB(150, 140, 175), Font = F_BODY, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
 }, MMCard)
 
 local KeyBox = mk("TextBox", {
-    Size = UDim2.new(1, -60, 0, 42),
-    Position = UDim2.new(0, 30, 0, 110),
-    BackgroundColor3 = Color3.fromRGB(18, 14, 30),
-    BackgroundTransparency = 0.1,
+    Size = UDim2.new(1, -64, 0, 40),
+    Position = UDim2.new(0, 32, 0, 88),
+    BackgroundColor3 = Color3.fromRGB(10, 8, 18),
+    BackgroundTransparency = 0.35,
     BorderSizePixel = 0,
-    Text = "", PlaceholderText = "Key: FreeMemory",
-    PlaceholderColor3 = Color3.fromRGB(100, 95, 120),
-    TextColor3 = WHITE, Font = F_HEAD, TextSize = 14,
-    ClearTextOnFocus = false, ZIndex = 311,
+    Text = "", PlaceholderText = "Enter license key",
+    PlaceholderColor3 = Color3.fromRGB(90, 85, 110),
+    TextColor3 = WHITE, Font = F_HEAD, TextSize = 13,
+    ClearTextOnFocus = false, ZIndex = 325,
     TextXAlignment = Enum.TextXAlignment.Center,
 }, MMCard)
 mk("UICorner", { CornerRadius = UDim.new(0, 10) }, KeyBox)
-mk("UIStroke", { Color = Color3.fromRGB(90, 70, 150), Thickness = 1.2, Transparency = 0.4 }, KeyBox)
+mk("UIStroke", { Color = Color3.fromRGB(120, 90, 180), Thickness = 1, Transparency = 0.5 }, KeyBox)
 
 local StatusLbl = mk("TextLabel", {
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 20, 0, 158),
-    Text = "", TextColor3 = Color3.fromRGB(255, 80, 100),
+    Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 20, 0, 132),
+    Text = "", TextColor3 = Color3.fromRGB(240, 70, 80),
     Font = F_BODY, TextSize = 11,
-    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 311,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
 }, MMCard)
 
--- accent preview in main menu
+local LaunchBtn = mk("TextButton", {
+    Size = UDim2.new(1, -64, 0, 42),
+    Position = UDim2.new(0, 32, 0, 195),
+    BackgroundColor3 = Theme.Accent,
+    BackgroundTransparency = 0.2,
+    BorderSizePixel = 0,
+    Text = "Launch", TextColor3 = WHITE,
+    Font = F_HEAD, TextSize = 14, AutoButtonColor = false, ZIndex = 325,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 11) }, LaunchBtn)
+mk("UIStroke", { Color = WHITE, Thickness = 1, Transparency = 0.75 }, LaunchBtn)
+
+-- customization row
 local AccRow = mk("Frame", {
-    Size = UDim2.new(1, -60, 0, 28),
-    Position = UDim2.new(0, 30, 0, 185),
-    BackgroundTransparency = 1, ZIndex = 311,
+    Size = UDim2.new(1, -64, 0, 26),
+    Position = UDim2.new(0, 32, 0, 152),
+    BackgroundTransparency = 1, ZIndex = 325,
 }, MMCard)
 mk("TextLabel", {
-    BackgroundTransparency = 1, Size = UDim2.fromOffset(60, 28),
-    Text = "Accent", TextColor3 = Color3.fromRGB(160, 150, 180),
-    Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 312,
+    BackgroundTransparency = 1, Size = UDim2.fromOffset(70, 26),
+    Text = "Accent", TextColor3 = Color3.fromRGB(140, 130, 160),
+    Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 326,
 }, AccRow)
 local mmAccents = {
-    { Color3.fromRGB(139, 92, 246), "Purple" },
-    { Color3.fromRGB(255, 64, 160), "Pink" },
-    { Color3.fromRGB(70, 140, 255), "Blue" },
-    { Color3.fromRGB(80, 220, 120), "Green" },
-    { Color3.fromRGB(255, 200, 80), "Gold" },
+    Color3.fromRGB(139, 92, 246),
+    Color3.fromRGB(255, 64, 160),
+    Color3.fromRGB(70, 140, 255),
+    Color3.fromRGB(80, 220, 120),
+    Color3.fromRGB(255, 200, 80),
+    Color3.fromRGB(240, 70, 80),
 }
-for i, a in ipairs(mmAccents) do
+for i, col in ipairs(mmAccents) do
     local b = mk("TextButton", {
-        Size = UDim2.fromOffset(22, 22),
-        Position = UDim2.fromOffset(60 + (i - 1) * 28, 3),
-        BackgroundColor3 = a[1], BorderSizePixel = 0,
-        Text = "", AutoButtonColor = false, ZIndex = 312,
+        Size = UDim2.fromOffset(20, 20),
+        Position = UDim2.fromOffset(70 + (i - 1) * 26, 3),
+        BackgroundColor3 = col, BorderSizePixel = 0,
+        Text = "", AutoButtonColor = false, ZIndex = 326,
     }, AccRow)
     mk("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+    mk("UIStroke", { Color = WHITE, Thickness = 1, Transparency = 0.7 }, b)
     b.MouseButton1Click:Connect(function()
-        Theme.Accent = a[1]
+        Theme.Accent = col
         Theme.Rainbow = false
+        LaunchBtn.BackgroundColor3 = col
+        notifyOk("Accent", "Theme updated")
     end)
 end
 
-local LaunchBtn = mk("TextButton", {
-    Size = UDim2.new(1, -60, 0, 44),
-    Position = UDim2.new(0, 30, 0, 230),
-    BackgroundColor3 = Theme.Accent,
-    BackgroundTransparency = 0.1,
-    BorderSizePixel = 0,
-    Text = "Launch", TextColor3 = WHITE,
-    Font = F_HEAD, TextSize = 15, AutoButtonColor = false, ZIndex = 311,
-}, MMCard)
-mk("UICorner", { CornerRadius = UDim.new(0, 12) }, LaunchBtn)
-
 mk("TextLabel", {
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 20, 1, -30),
-    Text = "memory.cc  ·  key system v1",
-    TextColor3 = Color3.fromRGB(90, 85, 110), Font = F_BODY, TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 311,
+    Size = UDim2.new(1, -40, 0, 12), Position = UDim2.new(0, 20, 1, -22),
+    Text = "Dark Fantasy  ·  LiquidGlass",
+    TextColor3 = Color3.fromRGB(80, 75, 100), Font = F_BODY, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
 }, MMCard)
 
 local function launchScript()
     AUTHED = true
-    local tw = TweenService:Create(MainMenu, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+    TweenService:Create(MainMenu, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         BackgroundTransparency = 1,
-    })
-    tw:Play()
+    }):Play()
     for _, d in ipairs(MainMenu:GetDescendants()) do
-        if d:IsA("Frame") or d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-            pcall(function()
-                TweenService:Create(d, TweenInfo.new(0.3), {
-                    BackgroundTransparency = 1,
-                    TextTransparency = d:IsA("TextBox") and 1 or (d:IsA("TextLabel") or d:IsA("TextButton")) and 1 or nil,
-                }):Play()
-            end)
-        end
+        pcall(function()
+            if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+                TweenService:Create(d, TweenInfo.new(0.28), { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
+            elseif d:IsA("Frame") then
+                TweenService:Create(d, TweenInfo.new(0.28), { BackgroundTransparency = 1 }):Play()
+            elseif d:IsA("UIStroke") then
+                TweenService:Create(d, TweenInfo.new(0.28), { Transparency = 1 }):Play()
+            end
+        end)
     end
     task.delay(0.4, function()
         if MainMenu then MainMenu:Destroy() end
@@ -3791,30 +3945,32 @@ local function launchScript()
             rebuildBindHUD()
             if BindHUD then BindHUD.Visible = true end
         end
-        notify("Welcome", "memory.cc loaded · key accepted", 4, "Purple")
-        notify("HotKeys", "Drag binds HUD · pin to lock position", 5, "Cyan")
+        notifyOk("Welcome", "memory.cc loaded")
+        notifyOk("Ready", "HotKeys · ESP · Combat online")
     end)
 end
 
 local function tryAuth()
     local key = (KeyBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if VALID_KEYS[key] then
-        StatusLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
-        StatusLbl.Text = "Key valid — launching..."
+        StatusLbl.TextColor3 = Color3.fromRGB(70, 210, 120)
+        StatusLbl.Text = "Key accepted"
         KeyBox.TextEditable = false
         LaunchBtn.Text = "..."
+        notifyOk("Auth", "License valid")
         task.delay(0.35, launchScript)
     else
-        StatusLbl.TextColor3 = Color3.fromRGB(255, 80, 100)
+        StatusLbl.TextColor3 = Color3.fromRGB(240, 70, 80)
         StatusLbl.Text = "Invalid key"
-        TweenService:Create(KeyBox, TweenInfo.new(0.08), { Position = UDim2.new(0, 36, 0, 110) }):Play()
-        task.delay(0.08, function()
-            TweenService:Create(KeyBox, TweenInfo.new(0.08), { Position = UDim2.new(0, 24, 0, 110) }):Play()
-            task.delay(0.08, function()
-                TweenService:Create(KeyBox, TweenInfo.new(0.08), { Position = UDim2.new(0, 30, 0, 110) }):Play()
+        local base = KeyBox.Position
+        TweenService:Create(KeyBox, TweenInfo.new(0.06), { Position = base + UDim2.fromOffset(6, 0) }):Play()
+        task.delay(0.06, function()
+            TweenService:Create(KeyBox, TweenInfo.new(0.06), { Position = base + UDim2.fromOffset(-6, 0) }):Play()
+            task.delay(0.06, function()
+                TweenService:Create(KeyBox, TweenInfo.new(0.06), { Position = base }):Play()
             end)
         end)
-        notify("Auth failed", "Invalid license key", 3, "Red")
+        notifyErr("Auth failed", "Invalid license key")
     end
 end
 
@@ -3823,10 +3979,10 @@ KeyBox.FocusLost:Connect(function(enter)
     if enter then tryAuth() end
 end)
 LaunchBtn.MouseEnter:Connect(function()
-    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0 }):Play()
+    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.05 }):Play()
 end)
 LaunchBtn.MouseLeave:Connect(function()
-    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.1 }):Play()
+    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.2 }):Play()
 end)
 
 bindTrail()
@@ -3953,6 +4109,42 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
+    -- event notifications (throttled)
+    do
+        V._notifCD = V._notifCD or {}
+        local function canNotif(id, cd)
+            local now = tick()
+            if (V._notifCD[id] or 0) > now then return false end
+            V._notifCD[id] = now + (cd or 3)
+            return true
+        end
+        if Config.ESP and r then
+            local nearName, nearDist = nil, 28
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character then
+                    local hrp2 = plr.Character:FindFirstChild("HumanoidRootPart")
+                    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                    if hrp2 and hum and hum.Health > 0 then
+                        local d = (hrp2.Position - r.Position).Magnitude
+                        if d < nearDist then
+                            nearDist = d
+                            nearName = plr.DisplayName or plr.Name
+                        end
+                    end
+                end
+            end
+            if nearName and canNotif("esp_near", 4) then
+                notify("ESP", nearName .. " nearby · " .. math.floor(nearDist) .. "m", 2.5, "ok")
+            end
+        end
+        if Config.Aim then
+            local tg = pickTarget()
+            if tg and canNotif("aim_lock", 3.5) then
+                notify("Aim", "Target locked", 2, "ok")
+            end
+        end
+    end
+
     if Config.Aim then
         local tg = pickTarget()
         if tg then
@@ -3967,6 +4159,13 @@ RunService.RenderStepped:Connect(function(dt)
         if gun and tg then
             r.CFrame = CFrame.lookAt(r.Position, Vector3.new(tg.Position.X, r.Position.Y, tg.Position.Z))
             pcall(function() gun:Activate() end)
+            if V._notifCD then
+                local now = tick()
+                if (V._notifCD.bullet or 0) <= now then
+                    V._notifCD.bullet = now + 2.5
+                    notifyOk("Bullet", "Auto-fire")
+                end
+            end
         end
     end
 
@@ -3975,6 +4174,7 @@ RunService.RenderStepped:Connect(function(dt)
         if gun and pickTarget(70) then
             pcall(function() gun:Activate() end)
             lastAtk = tick()
+            notifyOk("Triggerbot", "Fired", 1.5)
         end
     end
 
