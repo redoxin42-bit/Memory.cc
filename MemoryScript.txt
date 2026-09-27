@@ -78,6 +78,12 @@ local Config = {
     BindDesign = "Pill",
     BindSize = 14,
     BindPos = "Left",
+    BindPinned = false,
+    BindCustomX = nil,
+    BindCustomY = nil,
+    NotifEnabled = true,
+    NotifColor = "Purple",
+    NotifDuration = 4,
     Binds = {
         Menu       = Enum.KeyCode.RightShift,
         Aim        = Enum.KeyCode.Q,
@@ -91,6 +97,9 @@ local Config = {
         Skin       = Enum.KeyCode.G,
     },
 }
+
+local VALID_KEYS = { ["FreeMemory"] = true }
+local AUTHED = false
 
 local V = { highlights = {}, outlines = {}, billboards = {}, tracers = {}, boxes = {}, corners = {},
     skel = {}, hats = {}, aura = {}, original = {}, stars = nil, clouds = {}, rain = nil,
@@ -186,13 +195,148 @@ local function glassStroke(parent, thick, trans)
 end
 
 local function glassGradient(parent)
-    -- solid black look — no gradient wash
     local g = mk("UIGradient", {
         Color = ColorSequence.new(BLACK),
         Transparency = NumberSequence.new(0),
         Rotation = 0,
     }, parent)
     return g
+end
+
+-- ========================================================= Notification system
+local NOTIF_COLORS = {
+    Purple = Color3.fromRGB(139, 92, 246),
+    Pink   = Color3.fromRGB(255, 64, 160),
+    Green  = Color3.fromRGB(80, 220, 120),
+    Red    = Color3.fromRGB(255, 70, 80),
+    Blue   = Color3.fromRGB(70, 140, 255),
+    Gold   = Color3.fromRGB(255, 200, 80),
+    Cyan   = Color3.fromRGB(80, 220, 230),
+    White  = Color3.fromRGB(240, 240, 240),
+}
+
+local NotifStack = mk("Frame", {
+    Size = UDim2.fromOffset(300, 0),
+    AutomaticSize = Enum.AutomaticSize.Y,
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, -16, 0, 56),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0, ZIndex = 200,
+}, gui)
+mk("UIListLayout", {
+    Padding = UDim.new(0, 8),
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    HorizontalAlignment = Enum.HorizontalAlignment.Right,
+}, NotifStack)
+
+local function notify(title, body, duration, colorName)
+    if Config and Config.NotifEnabled == false then return end
+    duration = duration or (Config and Config.NotifDuration) or 4
+    local col = NOTIF_COLORS[colorName or (Config and Config.NotifColor) or "Purple"] or Theme.Accent
+
+    local card = mk("Frame", {
+        Size = UDim2.fromOffset(290, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Color3.fromRGB(12, 10, 18),
+        BackgroundTransparency = 0.08,
+        BorderSizePixel = 0, ZIndex = 201,
+        ClipsDescendants = true,
+    }, NotifStack)
+    mk("UICorner", { CornerRadius = UDim.new(0, 12) }, card)
+    mk("UIStroke", { Color = col, Thickness = 1.3, Transparency = 0.25 }, card)
+
+    -- accent bar left
+    mk("Frame", {
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = col, BorderSizePixel = 0, ZIndex = 202,
+    }, card)
+
+    local content = mk("Frame", {
+        Size = UDim2.new(1, -20, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Position = UDim2.fromOffset(14, 10),
+        BackgroundTransparency = 1, ZIndex = 202,
+    }, card)
+    mk("TextLabel", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 18),
+        Text = title or "memory.cc", TextColor3 = col,
+        Font = F_HEAD, TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 203,
+    }, content)
+    if body and body ~= "" then
+        mk("TextLabel", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, -24, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Position = UDim2.fromOffset(0, 20),
+            Text = body, TextColor3 = WHITE,
+            Font = F_BODY, TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true, ZIndex = 203,
+        }, content)
+    end
+
+    -- close button
+    local close = mk("TextButton", {
+        Size = UDim2.fromOffset(20, 20),
+        Position = UDim2.new(1, -28, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "×", TextColor3 = Color3.fromRGB(180, 180, 190),
+        Font = F_HEAD, TextSize = 16, ZIndex = 204, AutoButtonColor = false,
+    }, card)
+
+    -- progress bar
+    local barBg = mk("Frame", {
+        Size = UDim2.new(1, -16, 0, 3),
+        Position = UDim2.new(0, 8, 1, -8),
+        BackgroundColor3 = Color3.fromRGB(30, 25, 45),
+        BorderSizePixel = 0, ZIndex = 202,
+    }, card)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, barBg)
+    local bar = mk("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = col, BorderSizePixel = 0, ZIndex = 203,
+    }, barBg)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bar)
+
+    -- spacer for progress
+    mk("Frame", { Size = UDim2.new(1, 0, 0, 14), BackgroundTransparency = 1 }, content)
+
+    card.BackgroundTransparency = 1
+    TweenService:Create(card, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.08,
+    }):Play()
+
+    local dismissed = false
+    local function dismiss()
+        if dismissed then return end
+        dismissed = true
+        local tw = TweenService:Create(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            BackgroundTransparency = 1,
+        })
+        tw:Play()
+        for _, d in ipairs(card:GetDescendants()) do
+            if d:IsA("TextLabel") or d:IsA("TextButton") then
+                TweenService:Create(d, TweenInfo.new(0.2), { TextTransparency = 1 }):Play()
+            elseif d:IsA("Frame") and d ~= card then
+                TweenService:Create(d, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+            elseif d:IsA("UIStroke") then
+                TweenService:Create(d, TweenInfo.new(0.2), { Transparency = 1 }):Play()
+            end
+        end
+        task.delay(0.25, function()
+            if card and card.Parent then card:Destroy() end
+        end)
+    end
+    close.MouseButton1Click:Connect(dismiss)
+    card.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then dismiss() end
+    end)
+
+    TweenService:Create(bar, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 1, 0),
+    }):Play()
+    task.delay(duration, dismiss)
+    return dismiss
 end
 
 local function buildLogo(parent, size, pos)
@@ -693,6 +837,7 @@ end
 
 local menuOpen = false
 local function toggleMenu(force)
+    if not AUTHED then return end
     if force ~= nil then menuOpen = force else menuOpen = not menuOpen end
     local base = Panel.Position
     if menuOpen then
@@ -3051,7 +3196,7 @@ local BindRows = {}
 local function rebuildBindHUD()
     if BindHUD then BindHUD:Destroy(); BindHUD = nil end
     BindRows = {}
-    if not Config.BindShow then return end
+    if not Config.BindShow or not AUTHED then return end
 
     local designs = {
         Pill  = { corner = 10, stroke = 0.35, bg = 0.12 },
@@ -3068,27 +3213,102 @@ local function rebuildBindHUD()
         AutomaticSize = Enum.AutomaticSize.XY,
         BackgroundTransparency = 1,
         BorderSizePixel = 0, ZIndex = 80,
+        Active = true,
     }, gui)
 
-    local posMap = {
-        Left   = UDim2.new(0, 12, 0.35, 0),
-        Right  = UDim2.new(1, -12, 0.35, 0),
-        Bottom = UDim2.new(0.5, 0, 1, -12),
-    }
-    BindHUD.Position = posMap[Config.BindPos] or posMap.Left
-    if Config.BindPos == "Right" then
-        BindHUD.AnchorPoint = Vector2.new(1, 0)
-    elseif Config.BindPos == "Bottom" then
-        BindHUD.AnchorPoint = Vector2.new(0.5, 1)
-    else
+    -- custom saved pos or preset
+    if Config.BindCustomX and Config.BindCustomY then
         BindHUD.AnchorPoint = Vector2.new(0, 0)
+        BindHUD.Position = UDim2.fromOffset(Config.BindCustomX, Config.BindCustomY)
+    else
+        local posMap = {
+            Left   = UDim2.new(0, 12, 0.35, 0),
+            Right  = UDim2.new(1, -12, 0.35, 0),
+            Bottom = UDim2.new(0.5, 0, 1, -12),
+        }
+        BindHUD.Position = posMap[Config.BindPos] or posMap.Left
+        if Config.BindPos == "Right" then
+            BindHUD.AnchorPoint = Vector2.new(1, 0)
+        elseif Config.BindPos == "Bottom" then
+            BindHUD.AnchorPoint = Vector2.new(0.5, 1)
+        else
+            BindHUD.AnchorPoint = Vector2.new(0, 0)
+        end
+    end
+
+    -- drag handle / pin bar
+    local handle = mk("Frame", {
+        Size = UDim2.fromOffset(140, 22),
+        BackgroundColor3 = Color3.fromRGB(16, 12, 26),
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0, ZIndex = 81, LayoutOrder = 0,
+        Active = true,
+    }, BindHUD)
+    mk("UICorner", { CornerRadius = UDim.new(0, 6) }, handle)
+    mk("TextLabel", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, -30, 1, 0), Position = UDim2.fromOffset(8, 0),
+        Text = Config.BindPinned and "Pinned" or "Drag me",
+        TextColor3 = Color3.fromRGB(160, 150, 180), Font = F_BODY, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 82,
+    }, handle)
+    local pinBtn = mk("TextButton", {
+        Size = UDim2.fromOffset(20, 18),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -4, 0.5, 0),
+        BackgroundColor3 = Config.BindPinned and Theme.Accent or Color3.fromRGB(40, 35, 55),
+        BorderSizePixel = 0, Text = Config.BindPinned and "🔒" or "📌",
+        TextColor3 = WHITE, Font = F_BODY, TextSize = 10,
+        AutoButtonColor = false, ZIndex = 83,
+    }, handle)
+    mk("UICorner", { CornerRadius = UDim.new(0, 4) }, pinBtn)
+    pinBtn.MouseButton1Click:Connect(function()
+        Config.BindPinned = not Config.BindPinned
+        if Config.BindPinned and BindHUD then
+            Config.BindCustomX = BindHUD.AbsolutePosition.X
+            Config.BindCustomY = BindHUD.AbsolutePosition.Y
+            notify("Binds", "Position pinned", 2, "Green")
+        else
+            notify("Binds", "Unpinned — drag freely", 2, "Cyan")
+        end
+        rebuildBindHUD()
+    end)
+
+    -- drag logic
+    do
+        local dragging, dStart, pStart
+        handle.InputBegan:Connect(function(inp)
+            if Config.BindPinned then return end
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dStart = inp.Position
+                pStart = BindHUD.AbsolutePosition
+                BindHUD.AnchorPoint = Vector2.new(0, 0)
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if not dragging or Config.BindPinned then return end
+            if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+                local delta = inp.Position - dStart
+                local nx = pStart.X + delta.X
+                local ny = pStart.Y + delta.Y
+                BindHUD.Position = UDim2.fromOffset(nx, ny)
+                Config.BindCustomX = nx
+                Config.BindCustomY = ny
+                Config.BindPos = "Custom"
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
     end
 
     local list = mk("UIListLayout", {
         Padding = UDim.new(0, 4),
         SortOrder = Enum.SortOrder.LayoutOrder,
-        HorizontalAlignment = (Config.BindPos == "Bottom") and Enum.HorizontalAlignment.Center or Enum.HorizontalAlignment.Left,
-        FillDirection = (Config.BindPos == "Bottom") and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        FillDirection = Enum.FillDirection.Vertical,
     }, BindHUD)
 
     for i, act in ipairs(BIND_ACTIONS) do
@@ -3183,14 +3403,35 @@ makeDropdown(pSettings, "Bind Design", "palette",
         rebuildBindHUD()
     end)
 makeDropdown(pSettings, "Bind Position", "list",
-    { "Left", "Right", "Bottom" },
+    { "Left", "Right", "Bottom", "Custom" },
     function(o)
         Config.BindPos = o
+        if o ~= "Custom" then
+            Config.BindCustomX = nil
+            Config.BindCustomY = nil
+        end
         rebuildBindHUD()
     end)
 makeSlider(pSettings, "Bind Size", "sliders", 10, 22, 14, function(v)
     Config.BindSize = v
     rebuildBindHUD()
+end)
+makeToggle(pSettings, "Pin Binds Position", "target", false, function(v)
+    Config.BindPinned = v
+    if v and BindHUD then
+        Config.BindCustomX = BindHUD.AbsolutePosition.X
+        Config.BindCustomY = BindHUD.AbsolutePosition.Y
+    end
+    rebuildBindHUD()
+end)
+makeToggle(pSettings, "Notifications", "list", true, function(v)
+    Config.NotifEnabled = v
+end)
+makeDropdown(pSettings, "Notif Color", "palette",
+    { "Purple", "Pink", "Green", "Red", "Blue", "Gold", "Cyan", "White" },
+    function(o) Config.NotifColor = o end)
+makeSlider(pSettings, "Notif Duration", "sliders", 2, 10, 4, function(v)
+    Config.NotifDuration = v
 end)
 
 -- per-action rebind rows (full width via list-style frames)
@@ -3254,6 +3495,7 @@ Mouse.Button1Down:Connect(function()
 end)
 
 UserInputService.JumpRequest:Connect(function()
+    if not AUTHED then return end
     if Config.InfJump then
         local h = humanoid()
         if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
@@ -3261,6 +3503,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(i, gp)
+    if not AUTHED then return end
     if i.UserInputType ~= Enum.UserInputType.Keyboard then return end
     -- rebind capture
     if waitingBind then
@@ -3277,6 +3520,7 @@ UserInputService.InputBegan:Connect(function(i, gp)
                     end
                 end
             end
+            local boundId = waitingBind
             Config.Binds[waitingBind] = kc
             for _, act in ipairs(BIND_ACTIONS) do
                 if act.id == waitingBind and act._btn then
@@ -3286,6 +3530,7 @@ UserInputService.InputBegan:Connect(function(i, gp)
             end
             waitingBind = nil
             rebuildBindHUD()
+            notify("Keybind", boundId .. " → " .. keyName(kc), 2, "Green")
         elseif kc == Enum.KeyCode.Escape then
             for _, act in ipairs(BIND_ACTIONS) do
                 if act.id == waitingBind and act._btn then
@@ -3361,15 +3606,228 @@ LocalPlayer.CharacterAdded:Connect(function(c)
     end)
 end)
 
-do
-    Panel.GroupTransparency = 1
-    Panel.Position = UDim2.fromOffset(200, 136)
-    task.delay(0.1, function()
-        TweenService:Create(Panel, TweenInfo.new(0.32, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            { GroupTransparency = 0, Position = UDim2.fromOffset(200, 120) }):Play()
+-- ========================================================= MAIN MENU + KEY SYSTEM
+Panel.Visible = false
+menuOpen = false
+pcall(function() WM.Visible = false end)
+pcall(function() FPSBox.Visible = false end)
+pcall(function() MSBox.Visible = false end)
+pcall(function() if BindHUD then BindHUD.Visible = false end end)
+
+local MainMenu = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.fromRGB(6, 4, 12),
+    BackgroundTransparency = 0,
+    BorderSizePixel = 0, ZIndex = 300,
+}, gui)
+
+-- animated gradient bg
+local bgOrb1 = mk("Frame", {
+    Size = UDim2.fromOffset(420, 420),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.3, 0, 0.4, 0),
+    BackgroundColor3 = Color3.fromRGB(90, 40, 180),
+    BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 301,
+}, MainMenu)
+mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bgOrb1)
+local bgOrb2 = mk("Frame", {
+    Size = UDim2.fromOffset(360, 360),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.75, 0, 0.65, 0),
+    BackgroundColor3 = Color3.fromRGB(180, 40, 120),
+    BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 301,
+}, MainMenu)
+mk("UICorner", { CornerRadius = UDim.new(1, 0) }, bgOrb2)
+
+task.spawn(function()
+    local t0 = tick()
+    while MainMenu and MainMenu.Parent do
+        local t = tick() - t0
+        bgOrb1.Position = UDim2.new(0.3 + math.sin(t * 0.4) * 0.08, 0, 0.4 + math.cos(t * 0.3) * 0.06, 0)
+        bgOrb2.Position = UDim2.new(0.75 + math.cos(t * 0.35) * 0.07, 0, 0.65 + math.sin(t * 0.45) * 0.05, 0)
+        task.wait(0.03)
+    end
+end)
+
+-- center card
+local MMCard = mk("Frame", {
+    Size = UDim2.fromOffset(380, 340),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundColor3 = Color3.fromRGB(12, 10, 20),
+    BackgroundTransparency = 0.05,
+    BorderSizePixel = 0, ZIndex = 310,
+}, MainMenu)
+mk("UICorner", { CornerRadius = UDim.new(0, 18) }, MMCard)
+mk("UIStroke", {
+    Color = Color3.fromRGB(120, 80, 200),
+    Thickness = 1.4, Transparency = 0.3,
+}, MMCard)
+
+local MMLogo = mk("Frame", {
+    Size = UDim2.fromOffset(200, 36),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 28),
+    BackgroundTransparency = 1, ZIndex = 311,
+}, MMCard)
+buildLogo(MMLogo, 28, UDim2.new(0, 0, 0.5, -14))
+mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, -36, 1, 0), Position = UDim2.fromOffset(36, 0),
+    Text = "memory.cc", TextColor3 = WHITE, Font = F_TITLE, TextSize = 20,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 312,
+}, MMLogo)
+
+mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 0, 18), Position = UDim2.new(0, 20, 0, 72),
+    Text = "Enter license key to continue",
+    TextColor3 = Color3.fromRGB(160, 150, 180), Font = F_BODY, TextSize = 12,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 311,
+}, MMCard)
+
+local KeyBox = mk("TextBox", {
+    Size = UDim2.new(1, -60, 0, 42),
+    Position = UDim2.new(0, 30, 0, 110),
+    BackgroundColor3 = Color3.fromRGB(18, 14, 30),
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0,
+    Text = "", PlaceholderText = "Key: FreeMemory",
+    PlaceholderColor3 = Color3.fromRGB(100, 95, 120),
+    TextColor3 = WHITE, Font = F_HEAD, TextSize = 14,
+    ClearTextOnFocus = false, ZIndex = 311,
+    TextXAlignment = Enum.TextXAlignment.Center,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 10) }, KeyBox)
+mk("UIStroke", { Color = Color3.fromRGB(90, 70, 150), Thickness = 1.2, Transparency = 0.4 }, KeyBox)
+
+local StatusLbl = mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 20, 0, 158),
+    Text = "", TextColor3 = Color3.fromRGB(255, 80, 100),
+    Font = F_BODY, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 311,
+}, MMCard)
+
+-- accent preview in main menu
+local AccRow = mk("Frame", {
+    Size = UDim2.new(1, -60, 0, 28),
+    Position = UDim2.new(0, 30, 0, 185),
+    BackgroundTransparency = 1, ZIndex = 311,
+}, MMCard)
+mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.fromOffset(60, 28),
+    Text = "Accent", TextColor3 = Color3.fromRGB(160, 150, 180),
+    Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 312,
+}, AccRow)
+local mmAccents = {
+    { Color3.fromRGB(139, 92, 246), "Purple" },
+    { Color3.fromRGB(255, 64, 160), "Pink" },
+    { Color3.fromRGB(70, 140, 255), "Blue" },
+    { Color3.fromRGB(80, 220, 120), "Green" },
+    { Color3.fromRGB(255, 200, 80), "Gold" },
+}
+for i, a in ipairs(mmAccents) do
+    local b = mk("TextButton", {
+        Size = UDim2.fromOffset(22, 22),
+        Position = UDim2.fromOffset(60 + (i - 1) * 28, 3),
+        BackgroundColor3 = a[1], BorderSizePixel = 0,
+        Text = "", AutoButtonColor = false, ZIndex = 312,
+    }, AccRow)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+    b.MouseButton1Click:Connect(function()
+        Theme.Accent = a[1]
+        Theme.Rainbow = false
     end)
-    menuOpen = true
 end
+
+local LaunchBtn = mk("TextButton", {
+    Size = UDim2.new(1, -60, 0, 44),
+    Position = UDim2.new(0, 30, 0, 230),
+    BackgroundColor3 = Theme.Accent,
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0,
+    Text = "Launch", TextColor3 = WHITE,
+    Font = F_HEAD, TextSize = 15, AutoButtonColor = false, ZIndex = 311,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 12) }, LaunchBtn)
+
+mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 20, 1, -30),
+    Text = "memory.cc  ·  key system v1",
+    TextColor3 = Color3.fromRGB(90, 85, 110), Font = F_BODY, TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 311,
+}, MMCard)
+
+local function launchScript()
+    AUTHED = true
+    local tw = TweenService:Create(MainMenu, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1,
+    })
+    tw:Play()
+    for _, d in ipairs(MainMenu:GetDescendants()) do
+        if d:IsA("Frame") or d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+            pcall(function()
+                TweenService:Create(d, TweenInfo.new(0.3), {
+                    BackgroundTransparency = 1,
+                    TextTransparency = d:IsA("TextBox") and 1 or (d:IsA("TextLabel") or d:IsA("TextButton")) and 1 or nil,
+                }):Play()
+            end)
+        end
+    end
+    task.delay(0.4, function()
+        if MainMenu then MainMenu:Destroy() end
+        pcall(function() WM.Visible = true end)
+        pcall(function() FPSBox.Visible = true end)
+        pcall(function() MSBox.Visible = true end)
+        Panel.Visible = true
+        Panel.GroupTransparency = 1
+        Panel.Position = UDim2.fromOffset(200, 136)
+        TweenService:Create(Panel, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            GroupTransparency = 0, Position = UDim2.fromOffset(200, 120),
+        }):Play()
+        menuOpen = true
+        if Config.BindShow then
+            rebuildBindHUD()
+            if BindHUD then BindHUD.Visible = true end
+        end
+        notify("Welcome", "memory.cc loaded · key accepted", 4, "Purple")
+        notify("HotKeys", "Drag binds HUD · pin to lock position", 5, "Cyan")
+    end)
+end
+
+local function tryAuth()
+    local key = (KeyBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if VALID_KEYS[key] then
+        StatusLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
+        StatusLbl.Text = "Key valid — launching..."
+        KeyBox.TextEditable = false
+        LaunchBtn.Text = "..."
+        task.delay(0.35, launchScript)
+    else
+        StatusLbl.TextColor3 = Color3.fromRGB(255, 80, 100)
+        StatusLbl.Text = "Invalid key"
+        TweenService:Create(KeyBox, TweenInfo.new(0.08), { Position = UDim2.new(0, 36, 0, 110) }):Play()
+        task.delay(0.08, function()
+            TweenService:Create(KeyBox, TweenInfo.new(0.08), { Position = UDim2.new(0, 24, 0, 110) }):Play()
+            task.delay(0.08, function()
+                TweenService:Create(KeyBox, TweenInfo.new(0.08), { Position = UDim2.new(0, 30, 0, 110) }):Play()
+            end)
+        end)
+        notify("Auth failed", "Invalid license key", 3, "Red")
+    end
+end
+
+LaunchBtn.MouseButton1Click:Connect(tryAuth)
+KeyBox.FocusLost:Connect(function(enter)
+    if enter then tryAuth() end
+end)
+LaunchBtn.MouseEnter:Connect(function()
+    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0 }):Play()
+end)
+LaunchBtn.MouseLeave:Connect(function()
+    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.1 }):Play()
+end)
 
 bindTrail()
 
@@ -3377,6 +3835,7 @@ bindTrail()
 
 local lastAtk = 0
 RunService.RenderStepped:Connect(function(dt)
+    if not AUTHED then return end
     V.spin = (V.spin + dt) % (math.pi * 2)
     local t = tick()
 
