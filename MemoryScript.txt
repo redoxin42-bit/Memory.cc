@@ -74,6 +74,22 @@ local Config = {
     HitRange = false,
     Prediction = false,
     HandAnim = false, HandAnimSpeed = 4,
+    BindShow = true,
+    BindDesign = "Pill",
+    BindSize = 14,
+    BindPos = "Left",
+    Binds = {
+        Menu       = Enum.KeyCode.RightShift,
+        Aim        = Enum.KeyCode.Q,
+        SilentAim  = Enum.KeyCode.E,
+        ESP        = Enum.KeyCode.F,
+        Fly        = Enum.KeyCode.V,
+        Noclip     = Enum.KeyCode.N,
+        Speed      = Enum.KeyCode.X,
+        KnifeAura  = Enum.KeyCode.R,
+        Triggerbot = Enum.KeyCode.T,
+        Skin       = Enum.KeyCode.G,
+    },
 }
 
 local V = { highlights = {}, outlines = {}, billboards = {}, tracers = {}, boxes = {}, corners = {},
@@ -3007,13 +3023,220 @@ makeSlider(pSettings, "Menu Transparency", "sliders", 0, 60, 28, function(v)
     Root.BackgroundTransparency = v / 100
 end)
 
+-- ========================================================= HotKeys / Binds system
+
+local BIND_ACTIONS = {
+    { id = "Menu",       label = "Toggle Menu",   toggle = false },
+    { id = "Aim",        label = "Aim",           toggle = true,  cfg = "Aim" },
+    { id = "SilentAim",  label = "Silent Aim",    toggle = true,  cfg = "Silent" },
+    { id = "ESP",        label = "ESP",           toggle = true,  cfg = "ESP" },
+    { id = "Fly",        label = "Fly",           toggle = true,  cfg = "Fly" },
+    { id = "Noclip",     label = "Noclip",        toggle = true,  cfg = "Noclip" },
+    { id = "Speed",      label = "WalkSpeed",     toggle = true,  cfg = "Walk" },
+    { id = "KnifeAura",  label = "Knife Aura",    toggle = true,  cfg = "KnifeAura" },
+    { id = "Triggerbot", label = "Triggerbot",    toggle = true,  cfg = "Triggerbot" },
+    { id = "Skin",       label = "SkinChanger",   toggle = true,  cfg = "Skin" },
+}
+
+local function keyName(kc)
+    if not kc then return "—" end
+    local n = tostring(kc)
+    return n:gsub("Enum.KeyCode.", "")
+end
+
+local waitingBind = nil -- action id waiting for key
+local BindHUD = nil
+local BindRows = {}
+
+local function rebuildBindHUD()
+    if BindHUD then BindHUD:Destroy(); BindHUD = nil end
+    BindRows = {}
+    if not Config.BindShow then return end
+
+    local designs = {
+        Pill  = { corner = 10, stroke = 0.35, bg = 0.12 },
+        Boxed = { corner = 4,  stroke = 0.25, bg = 0.08 },
+        Glass = { corner = 12, stroke = 0.5,  bg = 0.35 },
+        Neon  = { corner = 8,  stroke = 0.1,  bg = 0.05 },
+        Minimal = { corner = 6, stroke = 0.7, bg = 0.45 },
+    }
+    local d = designs[Config.BindDesign] or designs.Pill
+    local sz = Config.BindSize or 14
+    local rowH = sz + 12
+
+    BindHUD = mk("Frame", {
+        AutomaticSize = Enum.AutomaticSize.XY,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0, ZIndex = 80,
+    }, gui)
+
+    local posMap = {
+        Left   = UDim2.new(0, 12, 0.35, 0),
+        Right  = UDim2.new(1, -12, 0.35, 0),
+        Bottom = UDim2.new(0.5, 0, 1, -12),
+    }
+    BindHUD.Position = posMap[Config.BindPos] or posMap.Left
+    if Config.BindPos == "Right" then
+        BindHUD.AnchorPoint = Vector2.new(1, 0)
+    elseif Config.BindPos == "Bottom" then
+        BindHUD.AnchorPoint = Vector2.new(0.5, 1)
+    else
+        BindHUD.AnchorPoint = Vector2.new(0, 0)
+    end
+
+    local list = mk("UIListLayout", {
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = (Config.BindPos == "Bottom") and Enum.HorizontalAlignment.Center or Enum.HorizontalAlignment.Left,
+        FillDirection = (Config.BindPos == "Bottom") and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical,
+    }, BindHUD)
+
+    for i, act in ipairs(BIND_ACTIONS) do
+        local kc = Config.Binds[act.id]
+        local row = mk("Frame", {
+            Size = UDim2.fromOffset(140, rowH),
+            BackgroundColor3 = Color3.fromRGB(12, 10, 18),
+            BackgroundTransparency = d.bg,
+            BorderSizePixel = 0, LayoutOrder = i, ZIndex = 81,
+        }, BindHUD)
+        mk("UICorner", { CornerRadius = UDim.new(0, d.corner) }, row)
+        mk("UIStroke", {
+            Color = Theme.Accent, Thickness = 1, Transparency = d.stroke,
+        }, row)
+
+        local keyBox = mk("Frame", {
+            Size = UDim2.fromOffset(sz + 16, sz + 4),
+            Position = UDim2.new(0, 6, 0.5, 0),
+            AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = 0.15,
+            BorderSizePixel = 0, ZIndex = 82,
+        }, row)
+        mk("UICorner", { CornerRadius = UDim.new(0, math.max(3, d.corner - 2)) }, keyBox)
+        local keyLbl = mk("TextLabel", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+            Text = keyName(kc), TextColor3 = WHITE,
+            Font = F_HEAD, TextSize = math.max(10, sz - 2),
+            TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 83,
+        }, keyBox)
+
+        local nameLbl = mk("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -50, 1, 0), Position = UDim2.fromOffset(sz + 26, 0),
+            Text = act.label, TextColor3 = WHITE,
+            Font = F_BODY, TextSize = math.max(10, sz - 3),
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 82,
+        }, row)
+
+        local stateDot = mk("Frame", {
+            Size = UDim2.fromOffset(6, 6),
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -8, 0.5, 0),
+            BackgroundColor3 = Color3.fromRGB(80, 80, 90),
+            BorderSizePixel = 0, ZIndex = 82,
+        }, row)
+        mk("UICorner", { CornerRadius = UDim.new(1, 0) }, stateDot)
+
+        BindRows[act.id] = { row = row, keyLbl = keyLbl, keyBox = keyBox, nameLbl = nameLbl, stateDot = stateDot, act = act }
+    end
+end
+
+local function refreshBindStates()
+    for id, row in pairs(BindRows) do
+        local act = row.act
+        if act.toggle and act.cfg then
+            local on = Config[act.cfg]
+            row.stateDot.BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(80, 80, 90)
+            row.keyBox.BackgroundTransparency = on and 0 or 0.35
+        end
+        row.keyLbl.Text = keyName(Config.Binds[id])
+    end
+end
+
+local function fireBind(act)
+    if act.id == "Menu" then
+        toggleMenu()
+        return
+    end
+    if act.toggle and act.cfg then
+        Config[act.cfg] = not Config[act.cfg]
+        local v = Config[act.cfg]
+        -- side effects
+        if act.cfg == "Skin" then
+            if v then applySkin() else restoreSkin() end
+        elseif act.cfg == "ESP" then
+            -- visuals refresh via ensureVisuals in loop
+        end
+        refreshBindStates()
+    end
+end
+
+-- Binds UI in Settings
+makeToggle(pSettings, "Show Binds HUD", "list", true, function(v)
+    Config.BindShow = v
+    rebuildBindHUD()
+end)
+makeDropdown(pSettings, "Bind Design", "palette",
+    { "Pill", "Boxed", "Glass", "Neon", "Minimal" },
+    function(o)
+        Config.BindDesign = o
+        rebuildBindHUD()
+    end)
+makeDropdown(pSettings, "Bind Position", "list",
+    { "Left", "Right", "Bottom" },
+    function(o)
+        Config.BindPos = o
+        rebuildBindHUD()
+    end)
+makeSlider(pSettings, "Bind Size", "sliders", 10, 22, 14, function(v)
+    Config.BindSize = v
+    rebuildBindHUD()
+end)
+
+-- per-action rebind rows (full width via list-style frames)
+do
+    -- destroy grid on settings if we want full-width rebind rows mixed in - keep grid, use full-ish cards
+    for _, act in ipairs(BIND_ACTIONS) do
+        local f = rowShell(pSettings, 40)
+        mk("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0.55, 0, 1, 0), Position = UDim2.fromOffset(10, 0),
+            Text = act.label, TextColor3 = WHITE, Font = F_BODY, TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, f)
+        local kb = mk("TextButton", {
+            Size = UDim2.fromOffset(72, 26),
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -10, 0.5, 0),
+            BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = 0.2,
+            BorderSizePixel = 0,
+            Text = keyName(Config.Binds[act.id]),
+            TextColor3 = WHITE, Font = F_HEAD, TextSize = 11,
+            AutoButtonColor = false,
+        }, f)
+        mk("UICorner", { CornerRadius = UDim.new(0, 7) }, kb)
+        kb.MouseButton1Click:Connect(function()
+            if waitingBind then return end
+            waitingBind = act.id
+            kb.Text = "..."
+            kb.BackgroundTransparency = 0
+        end)
+        -- store ref for update after rebind
+        act._btn = kb
+    end
+end
+
+rebuildBindHUD()
+
 task.spawn(function()
     while gui.Parent do
         if Theme.Rainbow then
             Theme.Accent = Color3.fromHSV((tick() % 6) / 6, 0.65, 1)
             ApplyTheme()
         end
-        task.wait(0.08)
+        refreshBindStates()
+        task.wait(0.12)
     end
 end)
 
@@ -3038,8 +3261,50 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(i, gp)
+    if i.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    -- rebind capture
+    if waitingBind then
+        local kc = i.KeyCode
+        if kc ~= Enum.KeyCode.Unknown and kc ~= Enum.KeyCode.Escape then
+            -- prevent duplicate keys: clear others with same key
+            for id, k in pairs(Config.Binds) do
+                if k == kc and id ~= waitingBind then
+                    Config.Binds[id] = nil
+                    for _, act in ipairs(BIND_ACTIONS) do
+                        if act.id == id and act._btn then
+                            act._btn.Text = "—"
+                        end
+                    end
+                end
+            end
+            Config.Binds[waitingBind] = kc
+            for _, act in ipairs(BIND_ACTIONS) do
+                if act.id == waitingBind and act._btn then
+                    act._btn.Text = keyName(kc)
+                    act._btn.BackgroundTransparency = 0.2
+                end
+            end
+            waitingBind = nil
+            rebuildBindHUD()
+        elseif kc == Enum.KeyCode.Escape then
+            for _, act in ipairs(BIND_ACTIONS) do
+                if act.id == waitingBind and act._btn then
+                    act._btn.Text = keyName(Config.Binds[act.id])
+                    act._btn.BackgroundTransparency = 0.2
+                end
+            end
+            waitingBind = nil
+        end
+        return
+    end
     if gp then return end
-    if i.KeyCode == Enum.KeyCode.RightShift then toggleMenu() end
+    for _, act in ipairs(BIND_ACTIONS) do
+        local kc = Config.Binds[act.id]
+        if kc and i.KeyCode == kc then
+            fireBind(act)
+            break
+        end
+    end
 end)
 
 do
@@ -3405,3 +3670,4 @@ RunService.RenderStepped:Connect(function(dt)
         if plr ~= LocalPlayer then ensureVisuals(plr) end
     end
 end)
+
