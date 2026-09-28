@@ -3,17 +3,10 @@ local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService     = game:GetService("TweenService")
 local Lighting         = game:GetService("Lighting")
-local SoundService     = game:GetService("SoundService")
 
-local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local Camera      = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+local LocalPlayer = Players.LocalPlayer
+local Camera      = workspace.CurrentCamera
 local Mouse       = LocalPlayer:GetMouse()
-task.spawn(function()
-    while not Camera do
-        Camera = workspace.CurrentCamera
-        task.wait(0.1)
-    end
-end)
 
 local PINK     = Color3.fromRGB(255, 64, 160)
 local PINKGLOW = Color3.fromRGB(255, 105, 180)
@@ -81,8 +74,6 @@ local Config = {
     HitRange = false,
     Prediction = false,
     HandAnim = false, HandAnimSpeed = 4,
-    AutoGunTP = false,
-    MusicEnabled = false, MusicTrack = 1, MusicVolume = 0.5,
     BindShow = true,
     BindDesign = "Pill",
     BindSize = 14,
@@ -107,6 +98,8 @@ local Config = {
     },
 }
 
+local VALID_KEYS = { ["FreeMemory"] = true }
+local AUTHED = false
 
 local V = { highlights = {}, outlines = {}, billboards = {}, tracers = {}, boxes = {}, corners = {},
     skel = {}, hats = {}, aura = {}, original = {}, stars = nil, clouds = {}, rain = nil,
@@ -179,12 +172,7 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
-if not ok then
-    local pg = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
-    if pg then gui.Parent = pg else
-        pcall(function() gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end)
-    end
-end
+if not ok then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 local function mk(class, props, parent)
     local o = Instance.new(class)
@@ -279,7 +267,8 @@ local function notify(title, body, duration, status)
         Text = title or "memory.cc", TextColor3 = col,
         Font = F_HEAD, TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 203,
-            }, card)
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    }, card)
 
     -- body
     mk("TextLabel", {
@@ -290,7 +279,8 @@ local function notify(title, body, duration, status)
         TextColor3 = Color3.fromRGB(200, 200, 205),
         Font = F_BODY, TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 203,
-            }, card)
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    }, card)
 
     local close = mk("TextButton", {
         Size = UDim2.fromOffset(18, 18),
@@ -353,7 +343,6 @@ end
 
 local function notifyOk(title, body, dur) return notify(title, body, dur, "ok") end
 local function notifyErr(title, body, dur) return notify(title, body, dur, "err") end
-
 
 local function buildLogo(parent, size, pos)
     local box = mk("Frame", {
@@ -481,81 +470,9 @@ task.spawn(function()
     end
 end)
 
--- ========================================================= Player Music (Onda Andar)
-local MUSIC_TRACKS = {
-    { name = "Onda Andar",      id = "rbxassetid://9043887091",  color = Color3.fromRGB(255, 80, 140) },
-    { name = "Onda Andar Slow", id = "rbxassetid://9044702906",  color = Color3.fromRGB(180, 60, 220) },
-    { name = "Type London",     id = "rbxassetid://1843404009",  color = Color3.fromRGB(80, 160, 255) },
-    { name = "Cachalot",        id = "rbxassetid://1837853076",  color = Color3.fromRGB(255, 180, 60) },
-    { name = "Phonk Funk",      id = "rbxassetid://9042370693",  color = Color3.fromRGB(100, 255, 140) },
-}
-local musicSound = Instance.new("Sound")
-musicSound.Name = "MemoryCC_Music"
-musicSound.Looped = true
-musicSound.Volume = 0.5
-musicSound.Parent = SoundService
-pcall(function() SoundService.RespectFilteringEnabled = SoundService.RespectFilteringEnabled end)
-
-local function playMusic(idx)
-    idx = math.clamp(idx or 1, 1, #MUSIC_TRACKS)
-    Config.MusicTrack = idx
-    local tr = MUSIC_TRACKS[idx]
-    pcall(function() musicSound:Stop() end)
-    musicSound.SoundId = tr.id
-    musicSound.Volume = Config.MusicVolume or 0.5
-    if Config.MusicEnabled then
-        pcall(function() musicSound:Play() end)
-    end
-    pcall(function()
-        MusicLbl.Text = tr.name
-        MusicLbl.TextColor3 = tr.color
-    end)
-end
-
-local function toggleMusic()
-    Config.MusicEnabled = not Config.MusicEnabled
-    if Config.MusicEnabled then
-        playMusic(Config.MusicTrack or 1)
-        pcall(function() notifyOk("Music", MUSIC_TRACKS[Config.MusicTrack or 1].name) end)
-    else
-        pcall(function() musicSound:Stop() end)
-        pcall(function() MusicLbl.Text = "Player Music"; MusicLbl.TextColor3 = Color3.fromRGB(200,200,210) end)
-    end
-end
-
--- click MusicWM: toggle / cycle track
-pcall(function()
-    MusicWM.Active = true
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text = ""
-    btn.ZIndex = 105
-    btn.Parent = MusicWM
-    btn.MouseButton1Click:Connect(function()
-        if not Config.MusicEnabled then
-            Config.MusicEnabled = true
-            playMusic(Config.MusicTrack or 1)
-        else
-            local n = (Config.MusicTrack or 1) + 1
-            if n > #MUSIC_TRACKS then n = 1 end
-            playMusic(n)
-        end
-        pcall(function() notifyOk("Music", MUSIC_TRACKS[Config.MusicTrack].name) end)
-    end)
-    btn.MouseButton2Click:Connect(function()
-        Config.MusicEnabled = false
-        pcall(function() musicSound:Stop() end)
-        MusicLbl.Text = "Player Music"
-        MusicLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-    end)
-end)
-
-
-
 task.spawn(function()
     local frames = 0
-    RunService.RenderStepped:Connect(function() frames = frames + 1 end)
+    RunService.RenderStepped:Connect(function() frames += 1 end)
     while gui.Parent do
         task.wait(0.5)
         local fps = math.floor(frames / 0.5 + 0.5)
@@ -683,9 +600,8 @@ end
 -- ========================================================= PulseVisuals-style panel
 
 local Panel = mk("CanvasGroup", {
-    Size = UDim2.fromOffset(560, 340), Position = UDim2.fromOffset(180, 120),
+    Size = UDim2.fromOffset(680, 400), Position = UDim2.fromOffset(140, 100),
     BackgroundTransparency = 1, BorderSizePixel = 0,
-    GroupTransparency = 0, Visible = true,
 }, gui)
 
 local Root = mk("Frame", {
@@ -746,7 +662,7 @@ mk("UIStroke", {
 
 -- compact top brand
 local Title = mk("Frame", {
-    Size = UDim2.new(1, 0, 0, 34),
+    Size = UDim2.new(1, 0, 0, 40),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
 }, Root)
@@ -773,14 +689,14 @@ mk("UIStroke", { Color = Color3.fromRGB(100, 80, 160), Thickness = 1, Transparen
 
 -- body above bottom nav (left column for options)
 local Body = mk("Frame", {
-    Size = UDim2.new(1, -170, 1, -90), Position = UDim2.fromOffset(6, 38),
+    Size = UDim2.new(1, -200, 1, -100), Position = UDim2.fromOffset(8, 42),
     BackgroundTransparency = 1, BorderSizePixel = 0,
 }, Root)
 
 -- ========================================================= RIGHT PREVIEW PANEL (Yanderevs-style)
 local Preview = mk("Frame", {
-    Size = UDim2.fromOffset(150, 250),
-    Position = UDim2.new(1, -156, 0, 42),
+    Size = UDim2.fromOffset(176, 300),
+    Position = UDim2.new(1, -184, 0, 48),
     BackgroundColor3 = Color3.fromRGB(12, 12, 14),
     BackgroundTransparency = 0.15,
     BorderSizePixel = 0, ZIndex = 5,
@@ -968,6 +884,7 @@ local function refreshPreview()
         chipHat.Visible = (Config.PinkHat == true) or (Config.Aura == true) or (Config.Decor and Config.Decor ~= "None")
         chipSkeleton.Visible = Config.Skeleton == true
         chipFullbright.Visible = Config.Fullbright == true
+        -- figure effects
         figHalo.Visible = chipHat.Visible
         if Config.Chams then
             figChams.Thickness = 2
@@ -977,34 +894,12 @@ local function refreshPreview()
             figChams.Thickness = 0
             figChams.Transparency = 1
         end
-        -- real-time body color from theme / ESP / skin
-        local bodyCol = Color3.fromRGB(240, 240, 245)
-        if Config.ESP then bodyCol = Theme.Accent end
-        if Config.Skin and Config.SkinMode == "Rainbow" then
-            bodyCol = Color3.fromHSV((tick() % 5) / 5, 0.8, 1)
-        elseif Config.BodyGlow then
-            bodyCol = Theme.Accent
-        end
-        local bodyTr = (Config.ESP or Config.Chams) and 0.12 or 0
+        -- body tint when ESP on
+        local bodyCol = Config.ESP and Theme.Accent or Color3.fromRGB(240, 240, 245)
+        local bodyTr = Config.ESP and 0.15 or 0
         for _, f in ipairs({ figHead, figTorso, figArmL, figArmR, figLegL, figLegR }) do
             f.BackgroundColor3 = bodyCol
             f.BackgroundTransparency = bodyTr
-        end
-        -- animate right arm stroke in preview when HandAnim on
-        if Config.HandAnim then
-            local s = math.sin(tick() * (Config.HandAnimSpeed or 4) * math.pi)
-            figArmR.Position = UDim2.fromOffset(80, 48 + s * 8)
-            figArmR.Rotation = -20 + s * 25
-        else
-            figArmR.Position = UDim2.fromOffset(80, 48)
-            figArmR.Rotation = 0
-        end
-        -- outline boxes
-        if Config.Boxes then
-            Fig.BackgroundColor3 = Theme.Accent
-            Fig.BackgroundTransparency = 0.85
-        else
-            Fig.BackgroundTransparency = 1
         end
     end)
 end
@@ -1263,9 +1158,10 @@ local function ApplyTheme()
     if currentTab then switchTab(currentTab, true) end
 end
 
-local menuOpen = true
+local menuOpen = false
 local function toggleMenu(force)
-        if force ~= nil then menuOpen = force else menuOpen = not menuOpen end
+    if not AUTHED then return end
+    if force ~= nil then menuOpen = force else menuOpen = not menuOpen end
     local base = Panel.Position
     if menuOpen then
         Panel.Visible = true
@@ -1276,7 +1172,7 @@ local function toggleMenu(force)
     else
         local tw = TweenService:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
             { GroupTransparency = 1, Position = UDim2.new(base.X.Scale, base.X.Offset, base.Y.Scale, base.Y.Offset + 12) })
-        local conn; conn = tw.Completed:Connect(function() Panel.Visible = false; if conn then conn:Disconnect() end end)
+        tw.Completed:Once(function() Panel.Visible = false end)
         tw:Play()
     end
 end
@@ -2769,6 +2665,366 @@ local SKIN_CATALOG = {
     { name = "Makeshift (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(11229837140), tex = 11229837140 },
     { name = "Nebula", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(6598123521), tex = 6598123521 },
     { name = "Ocean (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(13933165014), tex = 13933165014 },
+    { name = "Orange Seer", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3184139504), tex = 3184139504 },
+    { name = "Pearl", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322621319), tex = 18322621319 },
+    { name = "Pearlshine (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322646152), tex = 18322646152 },
+    { name = "Peppermint", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(6076067750), tex = 6076067750 },
+    { name = "Phantom", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(11229732037), tex = 11229732037 },
+    { name = "Plasmabeam (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(10014717343), tex = 10014717343 },
+    { name = "Plasmablade", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(10014680882), tex = 10014680882 },
+    { name = "Prismatic", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(5360359935), tex = 5360359935 },
+    { name = "Purple Seer", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3184140119), tex = 3184140119 },
+    { name = "Rainbow", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(12966184630), tex = 12966184630 },
+    { name = "Rainbow Gun (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(12966354606), tex = 12966354606 },
+    { name = "Red Seer", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3184139367), tex = 3184139367 },
+    { name = "Sakura", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(12339366064), tex = 12339366064 },
+    { name = "Saw", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3187397991), tex = 3187397991 },
+    { name = "Seer", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3184139765), tex = 3184139765 },
+    { name = "Slasher", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3187398385), tex = 3187398385 },
+    { name = "Spectre (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(11229779932), tex = 11229779932 },
+    { name = "Swirly Blade", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304805693), tex = 8304805693 },
+    { name = "Swirly Gun (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(8305002569), tex = 8305002569 },
+    { name = "Traveler's Gun (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(15097920149), tex = 15097920149 },
+    { name = "Turkey", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(15413162319), tex = 15413162319 },
+    { name = "Vampire's Edge", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(5873256998), tex = 5873256998 },
+    { name = "Watergun (Gun)", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(18351388416), tex = 18351388416 },
+    { name = "Waves", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(13933066522), tex = 13933066522 },
+    { name = "Yellow Seer", rarity = "Godly", color = Color3.fromRGB(255,60,80), mat = Enum.Material.SmoothPlastic, img = mm2Img(3184139648), tex = 3184139648 },
+    { name = "Elderwood Scythe", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4468593654), tex = 4468593654 },
+    { name = "Gingerscope (Gun)", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15666596216), tex = 15666596216 },
+    { name = "Hallowscythe", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(5877016863), tex = 5877016863 },
+    { name = "Icebreaker", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121572723), tex = 6121572723 },
+    { name = "Icepiercer (Gun)", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11874071041), tex = 11874071041 },
+    { name = "Icewing", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669997196), tex = 2669997196 },
+    { name = "Logchopper", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4528268775), tex = 4528268775 },
+    { name = "Swirly Axe", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304801000), tex = 8304801000 },
+    { name = "Traveler's Axe", rarity = "Ancient", color = Color3.fromRGB(180,80,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15070870271), tex = 15070870271 },
+    { name = "Chromatic", rarity = "chroma", color = Color3.fromRGB(0,255,200), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965304445), tex = 12965304445 },
+    { name = "Chromatic (Gun)", rarity = "chroma", color = Color3.fromRGB(0,255,200), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965339774), tex = 12965339774 },
+    { name = "Arctic", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834401547), tex = 11834401547 },
+    { name = "Arctic (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834443783), tex = 11834443783 },
+    { name = "Aurora", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304750877), tex = 8304750877 },
+    { name = "Aurora (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304766165), tex = 8304766165 },
+    { name = "Beach", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(13944136198), tex = 13944136198 },
+    { name = "Blue Elite", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(1269374321), tex = 1269374321 },
+    { name = "Broken", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(12339323856), tex = 12339323856 },
+    { name = "Cavern", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534861110), tex = 4534861110 },
+    { name = "Cavern (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534875511), tex = 4534875511 },
+    { name = "Cotton Candy", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(435933179), tex = 435933179 },
+    { name = "Elite", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(241095344), tex = 241095344 },
+    { name = "Emerald", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(198461276), tex = 198461276 },
+    { name = "Fade", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501640), tex = 315501640 },
+    { name = "Frostfade", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635565488), tex = 15635565488 },
+    { name = "Frostfade (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635577623), tex = 15635577623 },
+    { name = "Fusion", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(365569686), tex = 365569686 },
+    { name = "Ghost", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513732969), tex = 2513732969 },
+    { name = "Ghost (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513741407), tex = 2513741407 },
+    { name = "Ginger", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669638742), tex = 2669638742 },
+    { name = "Ginger (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669785821), tex = 2669785821 },
+    { name = "Green Elite", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(332754554), tex = 332754554 },
+    { name = "Green Fire", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(1268706374), tex = 1268706374 },
+    { name = "Icecracker", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121848805), tex = 6121848805 },
+    { name = "Icedriller (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121866490), tex = 6121866490 },
+    { name = "JD", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(566867312), tex = 566867312 },
+    { name = "Latte", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(15413114703), tex = 15413114703 },
+    { name = "Latte (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(15413116029), tex = 15413116029 },
+    { name = "Midnight", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(197664126), tex = 197664126 },
+    { name = "Overseer", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(198458910), tex = 198458910 },
+    { name = "Overseer (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(175668680), tex = 175668680 },
+    { name = "Palms", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322137551), tex = 18322137551 },
+    { name = "Palms (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322192817), tex = 18322192817 },
+    { name = "Plasmite", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(161369368), tex = 161369368 },
+    { name = "Predator", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(235372015), tex = 235372015 },
+    { name = "Predator (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(203810176), tex = 203810176 },
+    { name = "Red Fire", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(1269256860), tex = 1269256860 },
+    { name = "Ripper", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866441301), tex = 5866441301 },
+    { name = "Ripper (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866460591), tex = 5866460591 },
+    { name = "Rune", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183607894), tex = 3183607894 },
+    { name = "Rupture (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(315100702), tex = 315100702 },
+    { name = "Santa's Magic", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(4535483042), tex = 4535483042 },
+    { name = "Santa's Spirit", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(6123357775), tex = 6123357775 },
+    { name = "Scratch", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(1133316381), tex = 1133316381 },
+    { name = "Shiny", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(473626979), tex = 473626979 },
+    { name = "Skulls", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210915060), tex = 4210915060 },
+    { name = "Sparkle (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(203869110), tex = 203869110 },
+    { name = "Spectral", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800226793), tex = 7800226793 },
+    { name = "Spectral (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800255531), tex = 7800255531 },
+    { name = "Splash", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(235371439), tex = 235371439 },
+    { name = "Splash (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659626370), tex = 4659626370 },
+    { name = "Traveler", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091407901), tex = 15091407901 },
+    { name = "Traveler (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091344462), tex = 15091344462 },
+    { name = "Tree", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(331745577), tex = 331745577 },
+    { name = "Tree (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(332497688), tex = 332497688 },
+    { name = "Universe (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(238546660), tex = 238546660 },
+    { name = "Vampire", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254125546), tex = 11254125546 },
+    { name = "Vampire (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(11255503583), tex = 11255503583 },
+    { name = "Viper (Gun)", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(160299600), tex = 160299600 },
+    { name = "Web", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(315104004), tex = 315104004 },
+    { name = "Witched", rarity = "Legendary", color = Color3.fromRGB(255,180,40), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210938270), tex = 4210938270 },
+    { name = "America (Gun)", rarity = "Classic", color = Color3.fromRGB(200,160,100), mat = Enum.Material.SmoothPlastic, img = mm2Img(164676043), tex = 164676043 },
+    { name = "Cowboy (Gun)", rarity = "Classic", color = Color3.fromRGB(200,160,100), mat = Enum.Material.SmoothPlastic, img = mm2Img(144290769), tex = 144290769 },
+    { name = "Golden (Gun)", rarity = "Classic", color = Color3.fromRGB(200,160,100), mat = Enum.Material.SmoothPlastic, img = mm2Img(147835357), tex = 147835357 },
+    { name = "Phaser (Gun)", rarity = "Classic", color = Color3.fromRGB(200,160,100), mat = Enum.Material.SmoothPlastic, img = mm2Img(144325423), tex = 144325423 },
+    { name = "Corrupt", rarity = "Unique", color = Color3.fromRGB(255,100,200), mat = Enum.Material.SmoothPlastic, img = mm2Img(197879343), tex = 197879343 },
+    { name = "Abstract", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(365569428), tex = 365569428 },
+    { name = "Ace (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(238546577), tex = 238546577 },
+    { name = "Bacon (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(238546467), tex = 238546467 },
+    { name = "Bats", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(531873625), tex = 531873625 },
+    { name = "Bio", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965298174), tex = 12965298174 },
+    { name = "Black", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(473626646), tex = 473626646 },
+    { name = "Bones", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(5872492951), tex = 5872492951 },
+    { name = "Candy Swirl", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534860226), tex = 4534860226 },
+    { name = "Candy Swirl (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534874602), tex = 4534874602 },
+    { name = "Cane", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669638508), tex = 2669638508 },
+    { name = "Cane (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669785546), tex = 2669785546 },
+    { name = "Curse", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254123390), tex = 11254123390 },
+    { name = "Damp", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(198461253), tex = 198461253 },
+    { name = "Darkgun (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091406343), tex = 15091406343 },
+    { name = "Darkknife", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091343579), tex = 15091343579 },
+    { name = "Deep Sea", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659634072), tex = 4659634072 },
+    { name = "Dungeon", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210920512), tex = 4210920512 },
+    { name = "Floral", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(13944135218), tex = 13944135218 },
+    { name = "Floral (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(18323751219), tex = 18323751219 },
+    { name = "Galactic (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(173913533), tex = 173913533 },
+    { name = "Galaxy", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(192480941), tex = 192480941 },
+    { name = "Ghastly", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091407068), tex = 15091407068 },
+    { name = "Ghastly (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091342564), tex = 15091342564 },
+    { name = "Ghostfire (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11284140034), tex = 11284140034 },
+    { name = "Ghosts (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866465099), tex = 5866465099 },
+    { name = "Gingerbread", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834399071), tex = 11834399071 },
+    { name = "Gingerbread (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834442414), tex = 11834442414 },
+    { name = "Green Marble", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(1133366830), tex = 1133366830 },
+    { name = "Hacker (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(203819271), tex = 203819271 },
+    { name = "Heart", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(12339327069), tex = 12339327069 },
+    { name = "Ice Camo (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304767724), tex = 8304767724 },
+    { name = "Icicles", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669639638), tex = 2669639638 },
+    { name = "Icicles (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669786044), tex = 2669786044 },
+    { name = "Imbued (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(162668312), tex = 162668312 },
+    { name = "Jack", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(315099010), tex = 315099010 },
+    { name = "Korblox", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501501), tex = 315501501 },
+    { name = "Krypto", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(198458841), tex = 198458841 },
+    { name = "Magma", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800225996), tex = 7800225996 },
+    { name = "Magma (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800252572), tex = 7800252572 },
+    { name = "Makeshift", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254180750), tex = 11254180750 },
+    { name = "Molten", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(235371809), tex = 235371809 },
+    { name = "Molten (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(203869308), tex = 203869308 },
+    { name = "Monster (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210941474), tex = 4210941474 },
+    { name = "Mummy (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(315155591), tex = 315155591 },
+    { name = "Musical", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(365569566), tex = 365569566 },
+    { name = "Nightfire (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659626966), tex = 4659626966 },
+    { name = "Nova", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(235371686), tex = 235371686 },
+    { name = "Nuke (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965335931), tex = 12965335931 },
+    { name = "Orange Marble", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(531873011), tex = 531873011 },
+    { name = "Painted", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965311567), tex = 12965311567 },
+    { name = "Portal", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866444722), tex = 5866444722 },
+    { name = "Purple", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(473626740), tex = 473626740 },
+    { name = "Rainbow (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183640145), tex = 3183640145 },
+    { name = "Robot", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(16959778188), tex = 16959778188 },
+    { name = "Sharky", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322179563), tex = 18322179563 },
+    { name = "Silent Night", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121851313), tex = 6121851313 },
+    { name = "Silent Night (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121862034), tex = 6121862034 },
+    { name = "Snakebite", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210939388), tex = 4210939388 },
+    { name = "Snakebite (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210925026), tex = 4210925026 },
+    { name = "Snowflake (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635575718), tex = 15635575718 },
+    { name = "Snowflakes", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(6123338102), tex = 6123338102 },
+    { name = "Snowglobe", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635576863), tex = 15635576863 },
+    { name = "Snowy", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(1268705947), tex = 1268705947 },
+    { name = "Space", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183607442), tex = 3183607442 },
+    { name = "Spectrum", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(198458862), tex = 198458862 },
+    { name = "Spitfire (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(159971321), tex = 159971321 },
+    { name = "Spring", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(16959775902), tex = 16959775902 },
+    { name = "Squire", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501560), tex = 315501560 },
+    { name = "Starry", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304757707), tex = 8304757707 },
+    { name = "Starry (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304772774), tex = 8304772774 },
+    { name = "Sun (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(13944156090), tex = 13944156090 },
+    { name = "Swirl", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304757110), tex = 8304757110 },
+    { name = "Toxic", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513734535), tex = 2513734535 },
+    { name = "Toxic (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513742519), tex = 2513742519 },
+    { name = "Vortex", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(235371508), tex = 235371508 },
+    { name = "Watcher", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800227475), tex = 7800227475 },
+    { name = "Watcher (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800256309), tex = 7800256309 },
+    { name = "Wraith", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254118399), tex = 11254118399 },
+    { name = "Wraith (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11255504462), tex = 11255504462 },
+    { name = "Zombified", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254182560), tex = 11254182560 },
+    { name = "iRevolver (Gun)", rarity = "Rare", color = Color3.fromRGB(80,150,255), mat = Enum.Material.SmoothPlastic, img = mm2Img(203809168), tex = 203809168 },
+    { name = "Adurite", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(192492943), tex = 192492943 },
+    { name = "Adurite (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(175668921), tex = 175668921 },
+    { name = "Biogun (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659627458), tex = 4659627458 },
+    { name = "Blue", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(473626317), tex = 473626317 },
+    { name = "Bluesteel", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(159947939), tex = 159947939 },
+    { name = "Bluesteel (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(162668203), tex = 162668203 },
+    { name = "Bones (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210926347), tex = 4210926347 },
+    { name = "Brains", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210929184), tex = 4210929184 },
+    { name = "Brains (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11284145298), tex = 11284145298 },
+    { name = "Branches", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210943691), tex = 4210943691 },
+    { name = "Brush", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(365568602), tex = 365568602 },
+    { name = "Camo", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183606225), tex = 3183606225 },
+    { name = "Camo (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(160024789), tex = 160024789 },
+    { name = "Canes", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635574962), tex = 15635574962 },
+    { name = "Canes (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635558982), tex = 15635558982 },
+    { name = "Carrot", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(16959771850), tex = 16959771850 },
+    { name = "Carrot (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(16960082652), tex = 16960082652 },
+    { name = "Caution (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(238546422), tex = 238546422 },
+    { name = "Checker", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(198461230), tex = 198461230 },
+    { name = "Cheddar (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(203808317), tex = 203808317 },
+    { name = "Cheesy", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(198455898), tex = 198455898 },
+    { name = "Circuit", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(235366945), tex = 235366945 },
+    { name = "Cookie", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304752586), tex = 8304752586 },
+    { name = "Cookie (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304771148), tex = 8304771148 },
+    { name = "Doge", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(235371276), tex = 235371276 },
+    { name = "Donut", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(235366815), tex = 235366815 },
+    { name = "Eclipse", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091404278), tex = 15091404278 },
+    { name = "Fall Camo (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800257544), tex = 7800257544 },
+    { name = "Fireplace", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635558021), tex = 15635558021 },
+    { name = "Floatie (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322194067), tex = 18322194067 },
+    { name = "Frosty", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(1268704507), tex = 1268704507 },
+    { name = "Frozen", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534857523), tex = 4534857523 },
+    { name = "Frozen (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534873956), tex = 4534873956 },
+    { name = "Future", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(197639041), tex = 197639041 },
+    { name = "Ghostly", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11117375743), tex = 11117375743 },
+    { name = "Ghosts", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866442790), tex = 5866442790 },
+    { name = "Gifted", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(197627734), tex = 197627734 },
+    { name = "Glowy", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091403551), tex = 15091403551 },
+    { name = "Gothic", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800221141), tex = 7800221141 },
+    { name = "Gothic (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800253970), tex = 7800253970 },
+    { name = "Graffiti", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659634630), tex = 4659634630 },
+    { name = "Hazard", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254083234), tex = 11254083234 },
+    { name = "Hazard (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11255505449), tex = 11255505449 },
+    { name = "Hazmat", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501297), tex = 315501297 },
+    { name = "High Tech", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659635055), tex = 4659635055 },
+    { name = "Hive", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501434), tex = 315501434 },
+    { name = "Holly", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669638990), tex = 2669638990 },
+    { name = "Holly (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669786261), tex = 2669786261 },
+    { name = "Jellyfish", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322181701), tex = 18322181701 },
+    { name = "Jigsaw", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(365569126), tex = 365569126 },
+    { name = "Lantern", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254093910), tex = 11254093910 },
+    { name = "Lights", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534858185), tex = 4534858185 },
+    { name = "Lights (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534872673), tex = 4534872673 },
+    { name = "Love (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(203867650), tex = 203867650 },
+    { name = "Lucky", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(365569265), tex = 365569265 },
+    { name = "Marble", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965302237), tex = 12965302237 },
+    { name = "Marina (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(203808190), tex = 203808190 },
+    { name = "Melon", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501369), tex = 315501369 },
+    { name = "Melon (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(13944154336), tex = 13944154336 },
+    { name = "Meltdown", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091340751), tex = 15091340751 },
+    { name = "Missing", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(198455936), tex = 198455936 },
+    { name = "Mistletoe", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834394793), tex = 11834394793 },
+    { name = "Mistletoe (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834438982), tex = 11834438982 },
+    { name = "Moonlight (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11284143055), tex = 11284143055 },
+    { name = "Moons", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(531873154), tex = 531873154 },
+    { name = "Mummy", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513733542), tex = 2513733542 },
+    { name = "Night (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(159971385), tex = 159971385 },
+    { name = "Nutcracker (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(332497657), tex = 332497657 },
+    { name = "Painted (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965344675), tex = 12965344675 },
+    { name = "Paper", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(235366870), tex = 235366870 },
+    { name = "Pink", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(473626473), tex = 473626473 },
+    { name = "Pirate (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183639867), tex = 3183639867 },
+    { name = "Popsicle", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(13944131578), tex = 13944131578 },
+    { name = "Popsicle (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322191060), tex = 18322191060 },
+    { name = "Portal (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866461926), tex = 5866461926 },
+    { name = "Potion", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513733987), tex = 2513733987 },
+    { name = "Potion (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513742133), tex = 2513742133 },
+    { name = "Pumpkin", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(5872490600), tex = 5872490600 },
+    { name = "Pumpkin Pie", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15413117611), tex = 15413117611 },
+    { name = "Red", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(473626150), tex = 473626150 },
+    { name = "Rose", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(12339325736), tex = 12339325736 },
+    { name = "Sketch (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(203808108), tex = 203808108 },
+    { name = "Snowman (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(332497603), tex = 332497603 },
+    { name = "Soda (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(238546400), tex = 238546400 },
+    { name = "Stalker", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(198455980), tex = 198455980 },
+    { name = "Stars", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635559978), tex = 15635559978 },
+    { name = "Stars (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635574031), tex = 15635574031 },
+    { name = "Steel", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091405483), tex = 15091405483 },
+    { name = "Steel (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091341552), tex = 15091341552 },
+    { name = "Stockings", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834392930), tex = 11834392930 },
+    { name = "Stockings (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834440319), tex = 11834440319 },
+    { name = "Sweater (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669787088), tex = 2669787088 },
+    { name = "Tiger", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183606579), tex = 3183606579 },
+    { name = "Turtle", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322166908), tex = 18322166908 },
+    { name = "Void", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11548082732), tex = 11548082732 },
+    { name = "Wanwood", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(192132094), tex = 192132094 },
+    { name = "Webs", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(1133325465), tex = 1133325465 },
+    { name = "Witchbrew", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254115609), tex = 11254115609 },
+    { name = "Wolf", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(531873487), tex = 531873487 },
+    { name = "Wooden (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(238546356), tex = 238546356 },
+    { name = "Wraiths", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(7808362279), tex = 7808362279 },
+    { name = "Wraiths (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800251557), tex = 7800251557 },
+    { name = "Wrap", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121854816), tex = 6121854816 },
+    { name = "Wrap (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(6121867603), tex = 6121867603 },
+    { name = "Wrapped (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(332497103), tex = 332497103 },
+    { name = "Zombie", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091339932), tex = 15091339932 },
+    { name = "Zombie (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(2513743298), tex = 2513743298 },
+    { name = "Zombified (Gun)", rarity = "Uncommon", color = Color3.fromRGB(80,200,120), mat = Enum.Material.SmoothPlastic, img = mm2Img(4210944924), tex = 4210944924 },
+    { name = "2015", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(199026945), tex = 199026945 },
+    { name = "8bit", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(198453482), tex = 198453482 },
+    { name = "Alex", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(546159020), tex = 546159020 },
+    { name = "Aliens (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800250906), tex = 7800250906 },
+    { name = "Apocalypse", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254172968), tex = 11254172968 },
+    { name = "Apocalypse (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11255501940), tex = 11255501940 },
+    { name = "Aqua", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501208), tex = 315501208 },
+    { name = "Asteroid (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(476599365), tex = 476599365 },
+    { name = "Balloons (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(18323751962), tex = 18323751962 },
+    { name = "BattleAxe", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(1133237368), tex = 1133237368 },
+    { name = "Batwing", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(375690925), tex = 375690925 },
+    { name = "Bells", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635570486), tex = 15635570486 },
+    { name = "Big Kill (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(162669041), tex = 162669041 },
+    { name = "Bioblade", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(4751540097), tex = 4751540097 },
+    { name = "Bit (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(238549030), tex = 238549030 },
+    { name = "Bleached", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(315500879), tex = 315500879 },
+    { name = "Blood", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(144307188), tex = 144307188 },
+    { name = "Blossom", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(363150561), tex = 363150561 },
+    { name = "Borders", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(198453499), tex = 198453499 },
+    { name = "Brown", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(473625645), tex = 473625645 },
+    { name = "Bunny", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(387874365), tex = 387874365 },
+    { name = "Candied", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834384755), tex = 11834384755 },
+    { name = "Candied (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11834435627), tex = 11834435627 },
+    { name = "Candle", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(5872491708), tex = 5872491708 },
+    { name = "Candy Corn", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254057417), tex = 11254057417 },
+    { name = "Candy Corn (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11255558166), tex = 11255558166 },
+    { name = "CandyCorn", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(1133337797), tex = 1133337797 },
+    { name = "Cardboard", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(235366729), tex = 235366729 },
+    { name = "Carved", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866436906), tex = 5866436906 },
+    { name = "Carved (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(5866457985), tex = 5866457985 },
+    { name = "Cat (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800253444), tex = 7800253444 },
+    { name = "Cherry", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(6711852603), tex = 6711852603 },
+    { name = "Choco", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(387874991), tex = 387874991 },
+    { name = "Clan", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(235366460), tex = 235366460 },
+    { name = "Clockwork", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(360609441), tex = 360609441 },
+    { name = "Clown", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(315501118), tex = 315501118 },
+    { name = "Clown (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(4659627976), tex = 4659627976 },
+    { name = "Clownfish", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322183619), tex = 18322183619 },
+    { name = "Clownfish (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(18322197952), tex = 18322197952 },
+    { name = "Coal", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(2669638285), tex = 2669638285 },
+    { name = "Coal (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(8304769409), tex = 8304769409 },
+    { name = "Cold (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(161309889), tex = 161309889 },
+    { name = "Combat", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183604570), tex = 3183604570 },
+    { name = "Combat II", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(4972196241), tex = 4972196241 },
+    { name = "Copper", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(3183605392), tex = 3183605392 },
+    { name = "Corl", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(546161858), tex = 546161858 },
+    { name = "Cracks", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800224981), tex = 7800224981 },
+    { name = "Cracks (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(7800254737), tex = 7800254737 },
+    { name = "Darkness", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254081561), tex = 11254081561 },
+    { name = "Darkness (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11255507374), tex = 11255507374 },
+    { name = "Default Gun (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(197518111), tex = 197518111 },
+    { name = "Default Knife", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(584555920), tex = 584555920 },
+    { name = "Denis", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(546161062), tex = 546161062 },
+    { name = "Eco", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(365567889), tex = 365567889 },
+    { name = "Ecto", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(1133331679), tex = 1133331679 },
+    { name = "Egg", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(387875405), tex = 387875405 },
+    { name = "Elf", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(1268703023), tex = 1268703023 },
+    { name = "Elf (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(15635569893), tex = 15635569893 },
+    { name = "Engraved (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(203807690), tex = 203807690 },
+    { name = "Etched", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(15091321393), tex = 15091321393 },
+    { name = "Euro", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(305504173), tex = 305504173 },
+    { name = "Eyeball", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(11254065007), tex = 11254065007 },
+    { name = "Fallout (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(175668592), tex = 175668592 },
+    { name = "Flames", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(585873746), tex = 585873746 },
+    { name = "Fragile", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965294432), tex = 12965294432 },
+    { name = "Fragile (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(12965349193), tex = 12965349193 },
+    { name = "Frosted", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534853444), tex = 4534853444 },
+    { name = "Frosted (Gun)", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(4534866678), tex = 4534866678 },
+    { name = "Frostsaber", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(1268934541), tex = 1268934541 },
+    { name = "Ghosty", rarity = "Common", color = Color3.fromRGB(180,180,180), mat = Enum.Material.SmoothPlastic, img = mm2Img(531873080), tex = 531873080 },
 }
 
 local SkinFilter = { query = "", rarity = "All" }
@@ -2828,13 +3084,10 @@ local function rebuildSkinGrid(container)
     end
     local q = string.lower(SkinFilter.query or "")
     local r = SkinFilter.rarity or "All"
-    local shown = 0
     for _, s in ipairs(SKIN_CATALOG) do
-        if shown >= 80 then break end
         local matchName = q == "" or string.find(string.lower(s.name), q, 1, true)
         local matchRar = r == "All" or s.rarity == r
         if matchName and matchRar then
-            shown = shown + 1
             local selected = (SkinSelected == s.name)
             local card = mk("TextButton", {
                 Size = UDim2.fromOffset(96, 110),
@@ -2891,7 +3144,8 @@ local function rebuildSkinGrid(container)
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, -6, 0, 14), Position = UDim2.new(0, 3, 1, -40),
                 Text = s.name, TextColor3 = WHITE, Font = F_HEAD, TextSize = 10,
-                                TextXAlignment = Enum.TextXAlignment.Center,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Center,
             }, card)
             mk("TextLabel", {
                 BackgroundTransparency = 1,
@@ -3392,69 +3646,14 @@ makeFloatBtn("SHOOT MUR", 3, function()
     end
 end)
 
-
--- Config system
-local HttpService = game:GetService("HttpService")
-local function serializeConfig()
-    local copy = {}
-    for k, v in pairs(Config) do
-        local ty = typeof(v)
-        if ty == "number" or ty == "boolean" or ty == "string" then
-            copy[k] = v
-        end
-    end
-    copy._accent = { Theme.Accent.R, Theme.Accent.G, Theme.Accent.B }
-    return copy
-end
-local function applyConfig(data)
-    if type(data) ~= "table" then return end
-    for k, v in pairs(data) do
-        if k ~= "_accent" and Config[k] ~= nil then
-            Config[k] = v
-        end
-    end
-    if data._accent then
-        Theme.Accent = Color3.new(data._accent[1], data._accent[2], data._accent[3])
-        pcall(ApplyTheme)
-    end
-end
-local function saveConfig(slot)
-    slot = slot or "default"
-    local ok, err = pcall(function()
-        if writefile then
-            writefile("memory_cc_" .. slot .. ".json", HttpService:JSONEncode(serializeConfig()))
-        elseif setclipboard then
-            setclipboard(HttpService:JSONEncode(serializeConfig()))
-        end
-    end)
-    if ok then notifyOk("Config", "Saved: " .. slot)
-    else notifyErr("Config", tostring(err)) end
-end
-local function loadConfig(slot)
-    slot = slot or "default"
-    local ok, data = pcall(function()
-        if readfile and isfile and isfile("memory_cc_" .. slot .. ".json") then
-            return HttpService:JSONDecode(readfile("memory_cc_" .. slot .. ".json"))
-        end
-        return nil
-    end)
-    if ok and data then
-        applyConfig(data)
-        notifyOk("Config", "Loaded: " .. slot)
-    else
-        notifyErr("Config", "No save found")
-    end
-end
-
 -- ========================================================= tabs
-
 
 local pCombat   = makeTab("Combat", "sword", 1)
 local pVisual   = makeTab("Visuals", "eye2", 2)
 local pMisc     = makeTab("Misc", "vsliders", 3)
-local pSkins    = makeTab("Skins", "palette", 4)
-local pSettings = makeTab("Settings", "gear2", 5)
-local pPlayer   = makeTab("Player", "person", 6)
+local pPlayer   = makeTab("Player", "person", 4)
+local pSkins    = makeTab("Skins", "palette", 5)
+local pSettings = makeTab("Settings", "gear2", 6)
 switchTab("Combat", true)
 
 -- SKINS tab — client-only SkinChanger
@@ -3537,18 +3736,7 @@ do
         if v then applySkin() else restoreSkin() end
     end)
 
-    -- lazy: build grid only when Skins tab opens (was blocking MainMenu load)
-    local skinsBuilt = false
-    local oldSwitch = switchTab
-    switchTab = function(name, instant)
-        oldSwitch(name, instant)
-        if name == "Skins" and not skinsBuilt then
-            skinsBuilt = true
-            task.spawn(function()
-                pcall(rebuildSkinGrid, skinGrid)
-            end)
-        end
-    end
+    rebuildSkinGrid(skinGrid)
 end
 
 -- COMBAT
@@ -3562,7 +3750,6 @@ makeSlider(pCombat, "Silent FOV", "circle", 30, 800, 250, function(v) Config.Sil
 makeToggle(pCombat, "Bullet (Gun Auto-Fire)", "tool", false, function(v) Config.Bullet = v end)
 makeToggle(pCombat, "Triggerbot", "zap", false, function(v) Config.Triggerbot = v end)
 makeToggle(pCombat, "Knife Aura", "tool", false, function(v) Config.KnifeAura = v end)
-makeToggle(pCombat, "Auto Gun TP", "tp", false, function(v) Config.AutoGunTP = v end)
 makeToggle(pCombat, "Hitbox Expander", "expand", false, function(v)
     Config.Hitbox = v
     setHitbox(v)
@@ -3755,7 +3942,7 @@ local BindRows = {}
 local function rebuildBindHUD()
     if BindHUD then BindHUD:Destroy(); BindHUD = nil end
     BindRows = {}
-    if not Config.BindShow then return end
+    if not Config.BindShow or not AUTHED then return end
 
     local designs = {
         Pill  = { corner = 10, stroke = 0.35, bg = 0.12 },
@@ -3985,8 +4172,6 @@ makeToggle(pSettings, "Pin Binds Position", "target", false, function(v)
     end
     rebuildBindHUD()
 end)
-makeToggle(pSettings, "Save Config", "gear2", false, function(v) if v then saveConfig("default") end end)
-makeToggle(pSettings, "Load Config", "gear2", false, function(v) if v then loadConfig("default") end end)
 makeToggle(pSettings, "Notifications", "list", true, function(v)
     Config.NotifEnabled = v
 end)
@@ -4031,7 +4216,7 @@ do
     end
 end
 
-pcall(rebuildBindHUD)
+rebuildBindHUD()
 
 task.spawn(function()
     while gui.Parent do
@@ -4058,14 +4243,16 @@ Mouse.Button1Down:Connect(function()
 end)
 
 UserInputService.JumpRequest:Connect(function()
-        if Config.InfJump then
+    if not AUTHED then return end
+    if Config.InfJump then
         local h = humanoid()
         if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
     end
 end)
 
 UserInputService.InputBegan:Connect(function(i, gp)
-        if i.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    if not AUTHED then return end
+    if i.UserInputType ~= Enum.UserInputType.Keyboard then return end
     -- rebind capture
     if waitingBind then
         local kc = i.KeyCode
@@ -4167,153 +4354,369 @@ LocalPlayer.CharacterAdded:Connect(function(c)
     end)
 end)
 
--- open panel directly (no auth / MainMenu)
-Panel.Visible = true
-Panel.GroupTransparency = 0
-menuOpen = true
-pcall(function() WM.Visible = true end)
-pcall(function() if MusicWM then MusicWM.Visible = true end end)
-pcall(function() FPSBox.Visible = true end)
-pcall(function() MSBox.Visible = true end)
-pcall(rebuildBindHUD)
+-- ========================================================= MAIN MENU — LiquidGlass Dark Fantasy banner
+Panel.Visible = false
+menuOpen = false
+pcall(function() WM.Visible = false end)
+pcall(function() if MusicWM then MusicWM.Visible = false end end)
+pcall(function() FPSBox.Visible = false end)
+pcall(function() MSBox.Visible = false end)
+pcall(function() if BindHUD then BindHUD.Visible = false end end)
 
+local MainMenu = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.fromRGB(4, 3, 8),
+    BackgroundTransparency = 0,
+    BorderSizePixel = 0, ZIndex = 300,
+}, gui)
 
-pcall(bindTrail)
+-- Dark Fantasy layered sky
+local sky = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 301,
+}, MainMenu)
+mk("Frame", {
+    Size = UDim2.new(1, 0, 0.55, 0),
+    BackgroundColor3 = Color3.fromRGB(12, 6, 22), BorderSizePixel = 0, ZIndex = 301,
+}, sky)
+local skyGrad = mk("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 8, 35)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40, 12, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 4, 16)),
+    }),
+    Rotation = 90,
+}, sky:FindFirstChildOfClass("Frame"))
+-- ground / horizon
+local ground = mk("Frame", {
+    Size = UDim2.new(1, 0, 0.5, 0), Position = UDim2.new(0, 0, 0.5, 0),
+    BackgroundColor3 = Color3.fromRGB(10, 8, 14), BorderSizePixel = 0, ZIndex = 302,
+}, MainMenu)
+mk("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 12, 30)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(8, 6, 12)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(4, 3, 8)),
+    }),
+    Rotation = 90,
+}, ground)
 
+-- floating dark orbs (liquidglass depth)
+local function mkOrb(sz, col, x, y, tr)
+    local o = mk("Frame", {
+        Size = UDim2.fromOffset(sz, sz),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(x, 0, y, 0),
+        BackgroundColor3 = col,
+        BackgroundTransparency = tr or 0.88,
+        BorderSizePixel = 0, ZIndex = 303,
+    }, MainMenu)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, o)
+    return o
+end
+local orb1 = mkOrb(500, Color3.fromRGB(80, 20, 120), 0.2, 0.3, 0.9)
+local orb2 = mkOrb(380, Color3.fromRGB(140, 30, 60), 0.8, 0.55, 0.91)
+local orb3 = mkOrb(260, Color3.fromRGB(40, 60, 140), 0.55, 0.2, 0.92)
 
--- HandAnim: Stepped runs AFTER Animator so pose sticks
-V._handOrigC0 = V._handOrigC0 or {}
-V._handStep = RunService.Stepped:Connect(function()
-    if not Config.HandAnim then
-        if V._handWasOn then
-            local c = character()
-            if c then
-                for name, c0 in pairs(V._handOrigC0) do
-                    local part = c:FindFirstChild(name)
-                    if part then
-                        for _, d in ipairs(c:GetDescendants()) do
-                            if d:IsA("Motor6D") and d.Part1 == part then
-                                d.C0 = c0
-                                d.Transform = CFrame.new()
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-            V._handOrigC0 = {}
-            V._handWasOn = false
-        end
-        return
+-- mist particles
+local mist = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 304,
+}, MainMenu)
+for i = 1, 18 do
+    local p = mk("Frame", {
+        Size = UDim2.fromOffset(math.random(2, 5), math.random(2, 5)),
+        Position = UDim2.new(math.random(), 0, math.random(), 0),
+        BackgroundColor3 = Color3.fromRGB(180, 140, 220),
+        BackgroundTransparency = 0.7 + math.random() * 0.25,
+        BorderSizePixel = 0, ZIndex = 304,
+    }, mist)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, p)
+end
+
+task.spawn(function()
+    local t0 = tick()
+    while MainMenu and MainMenu.Parent do
+        local t = tick() - t0
+        orb1.Position = UDim2.new(0.22 + math.sin(t * 0.25) * 0.06, 0, 0.32 + math.cos(t * 0.2) * 0.04, 0)
+        orb2.Position = UDim2.new(0.78 + math.cos(t * 0.22) * 0.05, 0, 0.58 + math.sin(t * 0.28) * 0.04, 0)
+        orb3.Position = UDim2.new(0.55 + math.sin(t * 0.18) * 0.07, 0, 0.22 + math.cos(t * 0.3) * 0.05, 0)
+        task.wait(0.04)
     end
-    local c = character()
-    if not c then return end
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    if hum then
+end)
+
+-- BANNER card (black liquidglass)
+local MMCard = mk("Frame", {
+    Size = UDim2.fromOffset(480, 440),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+    BackgroundTransparency = 0.12,
+    BorderSizePixel = 0, ZIndex = 320,
+}, MainMenu)
+mk("UICorner", { CornerRadius = UDim.new(0, 18) }, MMCard)
+mk("UIStroke", {
+    Color = Color3.fromRGB(255, 255, 255),
+    Thickness = 1.2, Transparency = 0.55,
+}, MMCard)
+-- glass sheen
+local sheen = mk("Frame", {
+    Size = UDim2.new(1, 0, 0.4, 0), BackgroundTransparency = 1, ZIndex = 321,
+}, MMCard)
+mk("UIGradient", {
+    Color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.85),
+        NumberSequenceKeypoint.new(0.5, 0.92),
+        NumberSequenceKeypoint.new(1, 1),
+    }),
+    Rotation = 90,
+}, sheen)
+local sheenBg = mk("Frame", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BackgroundTransparency = 0.92, BorderSizePixel = 0, ZIndex = 321,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 20) }, sheenBg)
+mk("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.7),
+        NumberSequenceKeypoint.new(0.4, 0.95),
+        NumberSequenceKeypoint.new(1, 1),
+    }),
+    Rotation = 110,
+}, sheenBg)
+
+local MMLogo = mk("Frame", {
+    Size = UDim2.fromOffset(180, 32),
+    AnchorPoint = Vector2.new(0.5, 0),
+    Position = UDim2.new(0.5, 0, 0, 22),
+    BackgroundTransparency = 1, ZIndex = 325,
+}, MMCard)
+buildLogo(MMLogo, 26, UDim2.new(0, 0, 0.5, -13))
+mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(34, 0),
+    Text = "memory.cc", TextColor3 = WHITE, Font = F_TITLE, TextSize = 18,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 326,
+}, MMLogo)
+
+mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 0, 16), Position = UDim2.new(0, 20, 0, 58),
+    Text = "License  ·  Settings  ·  Launch",
+    TextColor3 = Color3.fromRGB(130, 130, 145), Font = F_BODY, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
+}, MMCard)
+
+local KeyBox = mk("TextBox", {
+    Size = UDim2.new(1, -64, 0, 38),
+    Position = UDim2.new(0, 32, 0, 82),
+    BackgroundColor3 = Color3.fromRGB(14, 14, 16),
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0,
+    Text = "", PlaceholderText = "Enter license key",
+    PlaceholderColor3 = Color3.fromRGB(90, 90, 100),
+    TextColor3 = WHITE, Font = F_HEAD, TextSize = 13,
+    ClearTextOnFocus = false, ZIndex = 325,
+    TextXAlignment = Enum.TextXAlignment.Center,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 10) }, KeyBox)
+mk("UIStroke", { Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Transparency = 0.7 }, KeyBox)
+
+local StatusLbl = mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 20, 0, 124),
+    Text = "", TextColor3 = Color3.fromRGB(240, 70, 80),
+    Font = F_BODY, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
+}, MMCard)
+
+local LaunchBtn = mk("TextButton", {
+    Size = UDim2.new(1, -64, 0, 40),
+    Position = UDim2.new(0, 32, 0, 360),
+    BackgroundColor3 = Theme.Accent,
+    BackgroundTransparency = 0.2,
+    BorderSizePixel = 0,
+    Text = "Launch", TextColor3 = WHITE,
+    Font = F_HEAD, TextSize = 14, AutoButtonColor = false, ZIndex = 325,
+}, MMCard)
+mk("UICorner", { CornerRadius = UDim.new(0, 11) }, LaunchBtn)
+mk("UIStroke", { Color = WHITE, Thickness = 1, Transparency = 0.75 }, LaunchBtn)
+
+-- customization row
+local AccRow = mk("Frame", {
+    Size = UDim2.new(1, -64, 0, 26),
+    Position = UDim2.new(0, 32, 0, 142),
+    BackgroundTransparency = 1, ZIndex = 325,
+}, MMCard)
+mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.fromOffset(70, 26),
+    Text = "Accent", TextColor3 = Color3.fromRGB(140, 130, 160),
+    Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 326,
+}, AccRow)
+local mmAccents = {
+    Color3.fromRGB(139, 92, 246),
+    Color3.fromRGB(255, 64, 160),
+    Color3.fromRGB(70, 140, 255),
+    Color3.fromRGB(80, 220, 120),
+    Color3.fromRGB(255, 200, 80),
+    Color3.fromRGB(240, 70, 80),
+}
+for i, col in ipairs(mmAccents) do
+    local b = mk("TextButton", {
+        Size = UDim2.fromOffset(20, 20),
+        Position = UDim2.fromOffset(70 + (i - 1) * 26, 3),
+        BackgroundColor3 = col, BorderSizePixel = 0,
+        Text = "", AutoButtonColor = false, ZIndex = 326,
+    }, AccRow)
+    mk("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+    mk("UIStroke", { Color = WHITE, Thickness = 1, Transparency = 0.7 }, b)
+    b.MouseButton1Click:Connect(function()
+        Theme.Accent = col
+        Theme.Rainbow = false
+        LaunchBtn.BackgroundColor3 = col
+        notifyOk("Accent", "Theme updated")
+    end)
+end
+
+-- Settings panel in Main Menu
+local ModeRow = mk("Frame", {
+    Size = UDim2.new(1, -64, 0, 160),
+    Position = UDim2.new(0, 32, 0, 176),
+    BackgroundTransparency = 1, ZIndex = 325,
+}, MMCard)
+mk("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 14),
+    Text = "Settings", TextColor3 = Color3.fromRGB(160, 160, 170),
+    Font = F_BODY, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 326,
+}, ModeRow)
+
+local function mmModeBtn(label, x, y, getv, setv)
+    local b = mk("TextButton", {
+        Size = UDim2.fromOffset(126, 26),
+        Position = UDim2.fromOffset(x, y),
+        BackgroundColor3 = Color3.fromRGB(14, 14, 16),
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        Text = label .. (getv() and "  ON" or "  OFF"),
+        TextColor3 = getv() and Color3.fromRGB(70, 210, 120) or Color3.fromRGB(150, 150, 160),
+        Font = F_BODY, TextSize = 11, AutoButtonColor = false, ZIndex = 326,
+    }, ModeRow)
+    mk("UICorner", { CornerRadius = UDim.new(0, 7) }, b)
+    mk("UIStroke", { Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Transparency = 0.75 }, b)
+    b.MouseButton1Click:Connect(function()
+        local nv = not getv()
+        setv(nv)
+        b.Text = label .. (nv and "  ON" or "  OFF")
+        b.TextColor3 = nv and Color3.fromRGB(70, 210, 120) or Color3.fromRGB(150, 150, 160)
+        notify(label, nv and "Enabled" or "Disabled", 1.5, nv and "ok" or "err")
+    end)
+    return b
+end
+
+-- row 1
+mmModeBtn("Notifications", 0, 22, function() return Config.NotifEnabled ~= false end, function(v) Config.NotifEnabled = v end)
+mmModeBtn("Rainbow", 134, 22, function() return Theme.Rainbow end, function(v) Theme.Rainbow = v end)
+mmModeBtn("Binds HUD", 268, 22, function() return Config.BindShow end, function(v) Config.BindShow = v end)
+-- row 2
+mmModeBtn("ESP", 0, 54, function() return Config.ESP end, function(v) Config.ESP = v end)
+mmModeBtn("Aim", 134, 54, function() return Config.Aim end, function(v) Config.Aim = v end)
+mmModeBtn("Noclip", 268, 54, function() return Config.Noclip end, function(v) Config.Noclip = v end)
+-- row 3
+mmModeBtn("Fly", 0, 86, function() return Config.Fly end, function(v) Config.Fly = v end)
+mmModeBtn("Fullbright", 134, 86, function() return Config.Fullbright end, function(v) Config.Fullbright = v end)
+mmModeBtn("Chams", 268, 86, function() return Config.Chams end, function(v) Config.Chams = v end)
+-- row 4
+mmModeBtn("Tracers", 0, 118, function() return Config.Tracers end, function(v) Config.Tracers = v end)
+mmModeBtn("Boxes", 134, 118, function() return Config.Boxes end, function(v) Config.Boxes = v end)
+mmModeBtn("Names", 268, 118, function() return Config.Names end, function(v) Config.Names = v end)
+
+mk("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -40, 0, 12), Position = UDim2.new(0, 20, 1, -20),
+    Text = "memory.cc  ·  Black LiquidGlass",
+    TextColor3 = Color3.fromRGB(70, 70, 80), Font = F_BODY, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 325,
+}, MMCard)
+
+local function launchScript()
+    AUTHED = true
+    TweenService:Create(MainMenu, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1,
+    }):Play()
+    for _, d in ipairs(MainMenu:GetDescendants()) do
         pcall(function()
-            for _, tr in ipairs(hum:GetPlayingAnimationTracks()) do
-                local n = string.lower(tr.Name or "")
-                if n:find("tool") or n:find("idle") or n:find("wave") or n:find("arm") or n:find("toolnone") then
-                    tr:Stop(0)
-                end
-            end
-            -- also stop Animate tool anims
-            local anim = c:FindFirstChild("Animate")
-            if anim then
-                local toolnone = anim:FindFirstChild("toolnone")
-                if toolnone then
-                    for _, v in ipairs(toolnone:GetDescendants()) do
-                        if v:IsA("Animation") then pcall(function() end) end
-                    end
-                end
+            if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+                TweenService:Create(d, TweenInfo.new(0.28), { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
+            elseif d:IsA("Frame") then
+                TweenService:Create(d, TweenInfo.new(0.28), { BackgroundTransparency = 1 }):Play()
+            elseif d:IsA("UIStroke") then
+                TweenService:Create(d, TweenInfo.new(0.28), { Transparency = 1 }):Play()
             end
         end)
     end
-    local spd = math.clamp(Config.HandAnimSpeed or 4, 1, 12)
-    local tt = tick() * spd * math.pi
-    local stroke = math.sin(tt)
-    local stroke2 = math.sin(tt + 0.4)
-    local grip = math.sin(tt * 2) * 0.25
-
-    local function setC0(partName, anglesCF)
-        local part = c:FindFirstChild(partName)
-        if not part then return end
-        for _, d in ipairs(c:GetDescendants()) do
-            if d:IsA("Motor6D") and d.Part1 == part then
-                if not V._handOrigC0[partName] then
-                    V._handOrigC0[partName] = d.C0
-                end
-                d.C0 = V._handOrigC0[partName] * anglesCF
-                d.Transform = CFrame.new()
-                return
-            end
+    task.delay(0.4, function()
+        if MainMenu then MainMenu:Destroy() end
+        pcall(function() WM.Visible = true end)
+        pcall(function() if MusicWM then MusicWM.Visible = true end end)
+        pcall(function() FPSBox.Visible = true end)
+        pcall(function() MSBox.Visible = true end)
+        Panel.Visible = true
+        Panel.GroupTransparency = 1
+        Panel.Position = UDim2.fromOffset(200, 136)
+        TweenService:Create(Panel, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            GroupTransparency = 0, Position = UDim2.fromOffset(200, 120),
+        }):Play()
+        menuOpen = true
+        if Config.BindShow then
+            rebuildBindHUD()
+            if BindHUD then BindHUD.Visible = true end
         end
-    end
+        notifyOk("Welcome", "memory.cc loaded")
+        notifyOk("Ready", "HotKeys · ESP · Combat online")
+    end)
+end
 
-    if c:FindFirstChild("RightUpperArm") then
-        setC0("RightUpperArm", CFrame.Angles(math.rad(-70 + stroke * 10), math.rad(-55), math.rad(75 + grip * 12)))
-        setC0("RightLowerArm", CFrame.Angles(math.rad(-95 + stroke * 70), math.rad(10), math.rad(5)))
-        setC0("RightHand", CFrame.Angles(math.rad(-20 + stroke * 25), math.rad(stroke * 15), math.rad(grip * 35)))
-        setC0("LeftUpperArm", CFrame.Angles(math.rad(-35 + stroke2 * 8), math.rad(30), math.rad(-25)))
-        setC0("LeftLowerArm", CFrame.Angles(math.rad(-45 + stroke2 * 18), 0, 0))
-        setC0("UpperTorso", CFrame.Angles(math.rad(10 + stroke * 3), 0, 0))
+local function tryAuth()
+    local key = (KeyBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if VALID_KEYS[key] then
+        StatusLbl.TextColor3 = Color3.fromRGB(70, 210, 120)
+        StatusLbl.Text = "Key accepted"
+        KeyBox.TextEditable = false
+        LaunchBtn.Text = "..."
+        notifyOk("Auth", "License valid")
+        task.delay(0.35, launchScript)
     else
-        setC0("Right Arm", CFrame.Angles(math.rad(-90 + stroke * 50), math.rad(-25), math.rad(60 + grip * 10)))
-        setC0("Left Arm", CFrame.Angles(math.rad(-25 + stroke2 * 12), math.rad(15), math.rad(-15)))
-        setC0("Torso", CFrame.Angles(math.rad(8 + stroke * 2), 0, 0))
+        StatusLbl.TextColor3 = Color3.fromRGB(240, 70, 80)
+        StatusLbl.Text = "Invalid key"
+        local base = KeyBox.Position
+        TweenService:Create(KeyBox, TweenInfo.new(0.06), { Position = base + UDim2.fromOffset(6, 0) }):Play()
+        task.delay(0.06, function()
+            TweenService:Create(KeyBox, TweenInfo.new(0.06), { Position = base + UDim2.fromOffset(-6, 0) }):Play()
+            task.delay(0.06, function()
+                TweenService:Create(KeyBox, TweenInfo.new(0.06), { Position = base }):Play()
+            end)
+        end)
+        notifyErr("Auth failed", "Invalid license key")
     end
-    V._handWasOn = true
+end
+
+LaunchBtn.MouseButton1Click:Connect(tryAuth)
+KeyBox.FocusLost:Connect(function(enter)
+    if enter then tryAuth() end
+end)
+LaunchBtn.MouseEnter:Connect(function()
+    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.05 }):Play()
+end)
+LaunchBtn.MouseLeave:Connect(function()
+    TweenService:Create(LaunchBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.2 }):Play()
 end)
 
-
--- Auto TP to gun after Sheriff dies
-V._sheriffAlive = {}
-RunService.Heartbeat:Connect(function()
-    if not Config.AutoGunTP then return end
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local okR, role = pcall(function() return getRole(plr) end)
-            if okR and role == "Sheriff" then
-                local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-                local alive = hum and hum.Health > 0
-                local was = V._sheriffAlive[plr]
-                V._sheriffAlive[plr] = alive
-                if was == true and not alive then
-                    task.delay(0.2, function()
-                        local myRoot = root()
-                        if not myRoot then return end
-                        local best, bestD = nil, 90
-                        for _, obj in ipairs(workspace:GetDescendants()) do
-                            local pos = nil
-                            if obj:IsA("Tool") then
-                                local h = obj:FindFirstChild("Handle")
-                                if h then pos = h.Position end
-                            elseif obj:IsA("BasePart") then
-                                local n = string.lower(obj.Name)
-                                if n:find("gun") or n:find("revolver") or n:find("pistol") or n:find("weapon") then
-                                    pos = obj.Position
-                                end
-                            end
-                            if pos then
-                                local d = (pos - myRoot.Position).Magnitude
-                                if d < bestD then bestD = d; best = pos end
-                            end
-                        end
-                        if best then
-                            myRoot.CFrame = CFrame.new(best + Vector3.new(0, 3, 0))
-                            pcall(function() notifyOk("Auto Gun TP", "Teleported to weapon") end)
-                        end
-                    end)
-                end
-            end
-        end
-    end
-end)
+bindTrail()
 
 -- ========================================================= main loop
 
 local lastAtk = 0
 RunService.RenderStepped:Connect(function(dt)
+    if not AUTHED then return end
     V.spin = (V.spin + dt) % (math.pi * 2)
     local t = tick()
 
@@ -4553,10 +4956,10 @@ RunService.RenderStepped:Connect(function(dt)
             h:ChangeState(Enum.HumanoidStateType.Physics)
         end
         local dir = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + Camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - Camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + Camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= Camera.CFrame.RightVector end
         local vy = 0
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vy = 1 end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then vy = -1 end
@@ -4601,11 +5004,107 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- masturbation anim applied in Stepped (after Animator) — see V._handStep
+    -- masturbation animation (client-side Motor6D): arm at crotch, stroke cycle
+    if Config.HandAnim and c then
+        local spd = math.clamp(Config.HandAnimSpeed or 4, 1, 12)
+        local stroke = math.sin(t * spd * math.pi)          -- -1..1 main pump
+        local stroke2 = math.sin(t * spd * math.pi + 0.4)   -- lagged phase
+        local grip = math.sin(t * spd * math.pi * 2) * 0.2
+
+        local function setMotor(partName, cf)
+            local part = c:FindFirstChild(partName)
+            if not part then return end
+            for _, d in ipairs(c:GetDescendants()) do
+                if d:IsA("Motor6D") and d.Part1 == part then
+                    d.Transform = cf
+                    return
+                end
+            end
+        end
+
+        if c:FindFirstChild("RightUpperArm") then
+            -- R15: right hand at front pelvis, forearm pumps up/down (jerking motion)
+            setMotor("RightUpperArm", CFrame.Angles(
+                math.rad(-75 + stroke * 12),   -- arm down toward crotch
+                math.rad(-50),                 -- across body
+                math.rad(70 + grip * 15)       -- pressed inward
+            ))
+            setMotor("RightLowerArm", CFrame.Angles(
+                math.rad(-100 + stroke * 65),  -- main stroke amplitude
+                math.rad(8),
+                math.rad(5)
+            ))
+            setMotor("RightHand", CFrame.Angles(
+                math.rad(-15 + stroke * 30),
+                math.rad(stroke * 12),
+                math.rad(grip * 40)
+            ))
+            -- slight left hand assist (optional second hand)
+            setMotor("LeftUpperArm", CFrame.Angles(
+                math.rad(-40 + stroke2 * 8),
+                math.rad(25),
+                math.rad(-30)
+            ))
+            setMotor("LeftLowerArm", CFrame.Angles(
+                math.rad(-50 + stroke2 * 20),
+                0, 0
+            ))
+            -- slight torso lean forward
+            local ut = c:FindFirstChild("UpperTorso")
+            if ut then
+                for _, d in ipairs(c:GetDescendants()) do
+                    if d:IsA("Motor6D") and d.Part1 == ut then
+                        d.Transform = CFrame.Angles(math.rad(8 + stroke * 3), 0, 0)
+                        break
+                    end
+                end
+            end
+        else
+            -- R6: Right Arm pumps at front of body
+            setMotor("Right Arm", CFrame.Angles(
+                math.rad(-85 + stroke * 45),
+                math.rad(-30),
+                math.rad(55 + grip * 12)
+            ))
+            setMotor("Left Arm", CFrame.Angles(
+                math.rad(-30 + stroke2 * 15),
+                math.rad(20),
+                math.rad(-20)
+            ))
+            local torso = c:FindFirstChild("Torso")
+            if torso then
+                for _, d in ipairs(c:GetDescendants()) do
+                    if d:IsA("Motor6D") and d.Part1 == torso then
+                        d.Transform = CFrame.Angles(math.rad(6 + stroke * 2), 0, 0)
+                        break
+                    end
+                end
+            end
+        end
+        V._handWasOn = true
+    elseif c and V._handWasOn then
+        local function resetMotor(partName)
+            local part = c:FindFirstChild(partName)
+            if not part then return end
+            for _, d in ipairs(c:GetDescendants()) do
+                if d:IsA("Motor6D") and d.Part1 == part then
+                    d.Transform = CFrame.new()
+                    return
+                end
+            end
+        end
+        for _, n in ipairs({
+            "RightUpperArm", "RightLowerArm", "RightHand",
+            "LeftUpperArm", "LeftLowerArm", "LeftHand",
+            "Right Arm", "Left Arm", "UpperTorso", "Torso"
+        }) do
+            resetMotor(n)
+        end
+        V._handWasOn = false
+    end
 
     drawOverlay()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then ensureVisuals(plr) end
     end
 end)
-
